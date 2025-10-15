@@ -7,7 +7,6 @@ on:
   pull_request:
     branches:
       - none
-
   workflow_dispatch:
 
 jobs:
@@ -16,7 +15,6 @@ jobs:
     steps:
     - name: Checkout source code
       uses: actions/checkout@v4
-
     - name: Set up libs
       run: |
         sudo apt-get update
@@ -48,7 +46,6 @@ jobs:
       run: |
         wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
         chmod +x appimagetool
-        
     - name: Package Manic Miner into AppImage
       run: |
        mkdir -p AppDir/usr/bin
@@ -68,7 +65,7 @@ jobs:
        ./appimagetool AppDir manicminer.AppImage
        chmod +x manicminer.AppImage
     - name: Upload AppImage artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: manicminer.AppImage
         path: manicminer.AppImage
