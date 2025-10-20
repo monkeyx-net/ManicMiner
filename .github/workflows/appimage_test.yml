@@ -144,9 +144,10 @@ jobs:
         arch: aarch64
         distro: ubuntu22.04
         githubToken: ${{ github.token }}
+        # Use sudo for package installation
         setup: |
-          apt-get update
-          apt-get install -y \
+          sudo apt-get update
+          sudo apt-get install -y \
             git \
             build-essential \
             make \
@@ -160,7 +161,8 @@ jobs:
             libsdl2-ttf-dev \
             libpipewire-0.3-dev \
             appstream \
-            cmake
+            cmake \
+            pkg-config
         run: |
           # Checkout and build in the QEMU environment
           cd /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}
@@ -233,6 +235,49 @@ jobs:
         name: manicminer-arm64
         path: |
           manicminer-aarch64.AppImage
+          manicminer-linux-arm64.tar.gz
+        retention-days: 7
+
+  # Alternative ARM64 build using docker/build-push-action (more reliable)
+  build-arm64-alternative:
+    runs-on: ubuntu-latest
+    if: false  # Set to true if you want to use this alternative method
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      
+    - name: Build using Docker
+      run: |
+        docker run --rm --privileged tonistiigi/binfmt:latest --install all
+        
+        docker run --rm -v $PWD:/workspace -w /workspace \
+          arm64v8/ubuntu:22.04 \
+          /bin/bash -c "
+          apt-get update &&
+          apt-get install -y build-essential make git wget fuse libfuse2 \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libpipewire-0.3-dev cmake pkg-config &&
+          git clone https://github.com/libsdl-org/SDL.git sdl-build &&
+          cd sdl-build &&
+          git checkout release-2.30.2 &&
+          mkdir build && cd build &&
+          cmake -DCMAKE_BUILD_TYPE=Release .. &&
+          make -j4 &&
+          cd ../.. &&
+          make &&
+          mkdir -p dist &&
+          cp manicminer dist/manicminer-arm64 &&
+          tar -czf manicminer-linux-arm64.tar.gz -C dist .
+          "
+
+    - name: Upload ARM64 artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: manicminer-arm64-alternative
+        path: |
           manicminer-linux-arm64.tar.gz
         retention-days: 7
 
