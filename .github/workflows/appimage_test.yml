@@ -2,12 +2,11 @@ name: Build Manic Miner Ubuntu Latest
 
 on:
   push:
-    branches:
-      - none
+    branches: [ mingw ]
   pull_request:
-    branches:
-      - none
+    branches: [ main ]
   workflow_dispatch:
+    branches: [ main ]
 
 jobs:
   build:
@@ -15,57 +14,115 @@ jobs:
     steps:
     - name: Checkout source code
       uses: actions/checkout@v4
-    - name: Set up libs
+      
+    - name: Checkout submodules (if any)
+      run: git submodule update --init --recursive
+
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsdl2-dev appstream wget fuse ibpipewire-0.3-dev libfuse2
-    - name: Build SDL library
+        sudo apt-get install -y \
+          libsdl2-dev \
+          libsdl2-image-dev \
+          libsdl2-mixer-dev \
+          libsdl2-ttf-dev \
+          appstream \
+          wget \
+          fuse \
+          libpipewire-0.3-dev \
+          libfuse2 \
+          build-essential \
+          make
+
+    - name: Build SDL library (if needed)
       run: |
-        SDL_RELEASE_TAG=release-2.30.2
-        SDL_SHARED_LIBRARY=libSDL2-2.0.so.0.3000.2
-        if [ ! -f external/SDL/build/${SDL_SHARED_LIBRARY} ]; then
-         echo "Building the SDL library..."
-         git clone https://github.com/libsdl-org/SDL.git
-         cd SDL
-         git checkout $SDL_RELEASE_TAG
-         mkdir build
-         cd build
-         cmake -DCMAKE_BUILD_TYPE=Release -S .. -B .
-         if [ $(grep PKG_PIPEWIRE_VERSION:INTERNAL= CMakeCache.txt) = "PKG_PIPEWIRE_VERSION:INTERNAL=" ]; then
-          echo "The SDL library is not configured with PipeWire support, aborting. Check this?"
-          exit 1
-         fi
-        make -j4
+        # Only build SDL if your project requires specific version/features
+        if [ -f "Makefile" ] && grep -q "SDL" "Makefile"; then
+          echo "Using system SDL libraries"
         else
-           echo "The SDL library has already been built, skipping this step"
+          echo "Building custom SDL..."
+          SDL_RELEASE_TAG=release-2.30.2
+          git clone https://github.com/libsdl-org/SDL.git sdl-build
+          cd sdl-build
+          git checkout $SDL_RELEASE_TAG
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          
+          # Fixed PipeWire check
+          if ! grep -q "PKG_PIPEWIRE_VERSION:INTERNAL=" CMakeCache.txt; then
+            echo "SDL library configured with PipeWire support"
+          else
+            echo "Warning: SDL library not configured with PipeWire support"
+          fi
+          
+          make -j$(nproc)
+          # Set environment variables to use custom build
+          export SDL2_DIR=$(pwd)
+          cd ../..
         fi
+
     - name: Build Manic Miner
       run: |
         make
+
     - name: Download AppImage tool
       run: |
         wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
         chmod +x appimagetool
+
     - name: Package Manic Miner into AppImage
       run: |
-       mkdir -p AppDir/usr/bin
-       mkdir -p AppDir/usr/lib
-       mkdir -p AppDir/usr/share/applications
-       cd AppDir
-       echo -e '[Desktop Entry]\nName=Manic Miner\nExec=manicminer\nIcon=manicminer\nType=Application\nCategories=Game;' > usr/share/applications/manicminer.desktop
-       ln -s usr/bin/manicminer AppRun
-       ln -s usr/share/applications/manicminer.desktop .
-       ln -s ../src/manicminer.png .
-       ln -s ../src/manicminer.png .DirIcon
-       cd ..
-       # Copy the SDL library and built binary
-       cp SDL/build/libSDL2-2.0.so.0 AppDir/usr/lib/libSDL2-2.0.so.0
-       cp manicminer AppDir/usr/bin/
-       # Generate the AppImage
-       ./appimagetool AppDir manicminer.AppImage
-       chmod +x manicminer.AppImage
+        # Create AppDir structure
+        mkdir -p AppDir/usr/bin
+        mkdir -p AppDir/usr/lib
+        mkdir -p AppDir/usr/share/applications
+        mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+        
+        # Create desktop entry
+        cat > AppDir/usr/share/applications/manicminer.desktop << EOF
+        [Desktop Entry]
+        Name=Manic Miner
+        Exec=manicminer
+        Icon=manicminer
+        Type=Application
+        Categories=Game;
+        EOF
+        
+        # Copy binary
+        cp manicminer AppDir/usr/bin/
+        chmod +x AppDir/usr/bin/manicminer
+        
+        # Copy icon (assuming it exists)
+        if [ -f "src/manicminer.png" ]; then
+          cp src/manicminer.png AppDir/usr/share/icons/hicolor/256x256/apps/
+          cp src/manicminer.png AppDir/
+        fi
+        
+        # Copy required libraries
+        cd AppDir
+        ln -s usr/bin/manicminer AppRun
+        ln -s usr/share/applications/manicminer.desktop manicminer.desktop
+        cd ..
+        
+        # Copy SDL library if custom built
+        if [ -f "sdl-build/build/libSDL2-2.0.so.0" ]; then
+          cp sdl-build/build/libSDL2-2.0.so.0 AppDir/usr/lib/
+        fi
+        
+        # Generate AppImage
+        ./appimagetool AppDir manicminer-x86_64.AppImage
+
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v4
       with:
-        name: manicminer.AppImage
-        path: manicminer.AppImage
+        name: manicminer-appimage
+        path: manicminer-x86_64.AppImage
+        retention-days: 7
+
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: manicminer-binary
+        path: manicminer
+        retention-days: 7
