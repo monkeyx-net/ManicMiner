@@ -1,4 +1,4 @@
-name: Build Manic Miner Ubuntu Latest
+name: Build Manic Miner Multi-Arch
 
 on:
   push:
@@ -6,11 +6,21 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
-    branches: [ main ]
+    branches: [ mingw ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            appimage_suffix: x86_64
+          - arch: arm64
+            runner: ubuntu-latest-arm64
+            appimage_suffix: aarch64
+    runs-on: ${{ matrix.runner }}
+    
     steps:
     - name: Checkout source code
       uses: actions/checkout@v4
@@ -32,7 +42,8 @@ jobs:
           libpipewire-0.3-dev \
           libfuse2 \
           build-essential \
-          make
+          make \
+          file
 
     - name: Build SDL library (if needed)
       run: |
@@ -65,10 +76,20 @@ jobs:
     - name: Build Manic Miner
       run: |
         make
+        
+    - name: Verify binary architecture
+      run: |
+        file manicminer
+        echo "Binary built for architecture: ${{ matrix.arch }}"
 
     - name: Download AppImage tool
       run: |
-        wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+        # Download appropriate AppImage tool for architecture
+        if [ "${{ matrix.arch }}" = "x86_64" ]; then
+          wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+        else
+          wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage
+        fi
         chmod +x appimagetool
 
     - name: Package Manic Miner into AppImage
@@ -89,7 +110,7 @@ jobs:
         Categories=Game;
         EOF
         
-        # Copy binary
+        # Copy binary with architecture-specific name
         cp manicminer AppDir/usr/bin/
         chmod +x AppDir/usr/bin/manicminer
         
@@ -110,19 +131,77 @@ jobs:
           cp sdl-build/build/libSDL2-2.0.so.0 AppDir/usr/lib/
         fi
         
-        # Generate AppImage
-        ./appimagetool AppDir manicminer-x86_64.AppImage
+        # Generate AppImage with architecture-specific name
+        ./appimagetool AppDir manicminer-${{ matrix.appimage_suffix }}.AppImage
 
-    - name: Upload AppImage artifact
+    - name: Create architecture-specific binary archive
+      run: |
+        mkdir -p dist
+        # Copy binary with architecture in name
+        cp manicminer dist/manicminer-${{ matrix.arch }}
+        # Create tar archive
+        tar -czf manicminer-linux-${{ matrix.arch }}.tar.gz -C dist .
+
+    - name: Upload AppImage artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: manicminer-appimage
-        path: manicminer-x86_64.AppImage
+        name: manicminer-appimage-${{ matrix.arch }}
+        path: |
+          manicminer-${{ matrix.appimage_suffix }}.AppImage
+          manicminer-linux-${{ matrix.arch }}.tar.gz
         retention-days: 7
 
-    - name: Upload binary artifact
+    - name: Upload binary artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: manicminer-binary
-        path: manicminer
+        name: manicminer-binary-${{ matrix.arch }}
+        path: |
+          manicminer
+          manicminer-linux-${{ matrix.arch }}.tar.gz
         retention-days: 7
+
+  # Create a combined release with all architectures
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        
+    - name: List downloaded artifacts
+      run: |
+        find artifacts -type f -name "*.AppImage" -o -name "*.tar.gz" | sort
+        echo "Creating combined release package..."
+        
+    - name: Create combined release archive
+      run: |
+        mkdir -p release
+        # Copy all AppImages and binaries
+        find artifacts -name "*.AppImage" -exec cp {} release/ \;
+        find artifacts -name "*.tar.gz" -exec cp {} release/ \;
+        
+        # Create SHA256 checksums
+        cd release
+        for file in *; do
+          if [ -f "$file" ]; then
+            sha256sum "$file" > "$file.sha256"
+          fi
+        done
+        
+        # Create combined zip for easy download
+        zip -r manicminer-multi-arch-release.zip *
+        
+    - name: Upload combined release
+      uses: actions/upload-artifact@v4
+      with:
+        name: manicminer-combined-release
+        path: |
+          release/*.AppImage
+          release/*.tar.gz
+          release/*.sha256
+          release/manicminer-multi-arch-release.zip
+        retention-days: 30
