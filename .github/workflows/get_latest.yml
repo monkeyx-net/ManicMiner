@@ -17,6 +17,7 @@ jobs:
         rm -rf latest
         mkdir latest
         unzip -q temp.zip -d latest/
+        ls -ltr /latest
         rm temp.zip
         
     - name: Commit changes
