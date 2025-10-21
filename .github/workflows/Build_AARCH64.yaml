@@ -6,11 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-x86_64:
-    runs-on: ubuntu-latest
-    steps:
-      # ... your existing x86_64 steps ...
-
+  
   build-arm64:
     runs-on: ubuntu-latest
     steps:
