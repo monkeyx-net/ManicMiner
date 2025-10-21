@@ -232,14 +232,14 @@ jobs:
       run: |
         mkdir -p pm/manicminer
         cp latest/*.sh pm/ 2>/dev/null || true
-        cp latest/manicminer/*.png *.txt *.json *.md *.xml *.gptk manicminer.armhf pm/manicminer/ 2>/dev/null || true
-        
+        chmod +x pm/*.sh
+        cp latest/manicminer/*.png latest/manicminer/*.txt latest/manicminer/*.json \
+        latest/manicminer/*.md latest/manicminer/*.xml latest/manicminer/*.gptk latest/manicminer/manicminer.armhf pm/manicminer/ 2>/dev/null || true
         cp manicminer pm/manicminer/manicminer.x86_64
         strip pm/manicminer/manicminer.x86_64
         chmod +x pm/manicminer/manicminer.x86_64        
         cp arm64-artifact/manicminer-aarch64 pm/manicminer/manicminer.aarch64
         chmod +x pm/manicminer/manicminer.aarch64
-
         cd pm
         zip -r ../manicminer.zip .
 
