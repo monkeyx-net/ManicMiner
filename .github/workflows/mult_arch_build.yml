@@ -172,9 +172,10 @@ jobs:
 
         # Generate PortMaster
         mkdir -p pm/manicminer
-        cd pm 
-        cp /latest/ports.json manicminer/
-        cp /latest/*.png ../manicminer/
+        cd pm
+        ls -ltr ../ 
+        # cp /latest/ports.json manicminer/
+        # cp /latest/*.png ../manicminer/
         cp manicminer manicminer/manicminer.x86_64
         chmod +x manicminer/manicminer.x86_64
         zip -r ../manicminer.zip .
