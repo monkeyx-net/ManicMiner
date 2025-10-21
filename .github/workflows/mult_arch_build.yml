@@ -170,6 +170,15 @@ jobs:
         # Generate AppImage
         ./appimagetool AppDir manicminer-x86_64.AppImage
 
+        # Generate PortMaster
+        mkdir -p pm/manicminer
+        cd pm 
+        cp ../latest/ports.json manicminer/
+        cp ../latest/*.png ../manicminer/
+        cp manicminer manicminer/manicminer.x86_64
+        chmod +x manicminer/manicminer.x86_64
+        zip -r ../manicminer.zip .
+
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v4
       with:
@@ -180,8 +189,8 @@ jobs:
     - name: Upload binary artifact
       uses: actions/upload-artifact@v4
       with:
-        name: manicminer-binary
-        path: manicminer
+        name: manicminer-portmaster
+        path: manicminer.zip
         retention-days: 7
 
   build-arm64:
