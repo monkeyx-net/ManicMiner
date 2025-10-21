@@ -139,16 +139,16 @@ jobs:
   build-arm64:
     runs-on: ubuntu-latest
     steps:
-    - name: Build for ARM64
+    - name: Build for ARM64 with better image
       uses: uraimo/run-on-arch-action@v2
       with:
         arch: aarch64
         distro: ubuntu22.04
+        dockerImage: arm64v8/ubuntu:22.04  # Explicitly use a better base image
         githubToken: ${{ github.token }}
-        # Install ALL dependencies including git in setup phase
         setup: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update
+          apt-get install -y \
             git \
             build-essential \
             make \
@@ -159,9 +159,10 @@ jobs:
             libsdl2-ttf-dev \
             libpipewire-0.3-dev \
             cmake \
-            pkg-config
+            pkg-config \
+            wget \
+            curl
         run: |
-          # Checkout and build in the QEMU environment
           cd /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}
           
           echo "Building SDL library..."
@@ -186,7 +187,6 @@ jobs:
           cp manicminer dist/manicminer-aarch64
           tar -czf manicminer-linux-arm64.tar.gz -C dist .
           
-          # List created files
           ls -la *.tar.gz
 
     - name: Upload ARM64 artifacts
@@ -197,29 +197,126 @@ jobs:
           manicminer-linux-arm64.tar.gz
         retention-days: 7
 
-  # Alternative: Pre-download SDL source to avoid git in ARM64 environment
-  build-arm64-alternative:
+  # Option 2: Use a pre-built development image
+  build-arm64-dev:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout source code
+    - name: Build for ARM64 with development image
+      uses: uraimo/run-on-arch-action@v2
+      with:
+        arch: aarch64
+        distro: ubuntu22.04
+        dockerImage: arm64v8/ubuntu:22.04  # Official ARM64 Ubuntu
+        githubToken: ${{ github.token }}
+        setup: |
+          apt-get update
+          apt-get install -y software-properties-common
+          add-apt-repository universe
+          apt-get update
+          apt-get install -y \
+            git \
+            build-essential \
+            make \
+            file \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libsdl2-mixer-dev \
+            libsdl2-ttf-dev \
+            libpipewire-0.3-dev \
+            cmake \
+            pkg-config
+        run: |
+          cd /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}
+          make
+          file manicminer
+          mkdir -p dist
+          cp manicminer dist/manicminer-aarch64
+          tar -czf manicminer-linux-arm64.tar.gz -C dist .
+
+    - name: Upload ARM64 dev artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: manicminer-arm64-dev
+        path: |
+          manicminer-linux-arm64.tar.gz
+        retention-days: 7
+
+  # Option 3: Use Docker Buildx for true multi-arch builds (Recommended)
+  build-multi-arch-docker:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+    - name: Checkout code
       uses: actions/checkout@v4
-      
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Build in Docker container
+      run: |
+        docker run --rm \
+          --platform linux/${{ matrix.arch }} \
+          -v $PWD:/workspace \
+          -w /workspace \
+          ubuntu:22.04 \
+          /bin/bash -c "
+          apt-get update &&
+          apt-get install -y build-essential make git cmake \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libpipewire-0.3-dev pkg-config &&
+          git clone https://github.com/libsdl-org/SDL.git sdl-build &&
+          cd sdl-build &&
+          git checkout release-2.30.2 &&
+          mkdir build && cd build &&
+          cmake -DCMAKE_BUILD_TYPE=Release .. &&
+          make -j4 &&
+          cd ../.. &&
+          make &&
+          mkdir -p dist &&
+          if [ '${{ matrix.arch }}' = 'amd64' ]; then
+            cp manicminer dist/manicminer-x86_64
+            tar -czf manicminer-linux-x86_64.tar.gz -C dist .
+          else
+            cp manicminer dist/manicminer-aarch64
+            tar -czf manicminer-linux-arm64.tar.gz -C dist .
+          fi
+          "
+
+    - name: Upload Docker-built artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: manicminer-docker-${{ matrix.arch }}
+        path: |
+          manicminer-linux-*.tar.gz
+        retention-days: 7
+
+  # Option 4: Simple approach - pre-download SDL source
+  build-arm64-simple:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Download SDL source
       run: |
-        SDL_RELEASE_TAG=release-2.30.2
-        wget -O sdl-source.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/${SDL_RELEASE_TAG}.tar.gz
-        tar -xzf sdl-source.tar.gz
-        mv SDL-${SDL_RELEASE_TAG#release-} sdl-source
-        
-    - name: Build for ARM64 (without git)
+        wget -O sdl.tar.gz https://www.libsdl.org/release/SDL2-2.30.2.tar.gz
+        tar -xzf sdl.tar.gz
+        mv SDL2-2.30.2 sdl-source
+
+    - name: Build for ARM64 (no git needed)
       uses: uraimo/run-on-arch-action@v2
       with:
         arch: aarch64
         distro: ubuntu22.04
         githubToken: ${{ github.token }}
         setup: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update
+          apt-get install -y \
             build-essential \
             make \
             file \
@@ -233,7 +330,7 @@ jobs:
         run: |
           cd /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}
           
-          echo "Building SDL library from pre-downloaded source..."
+          echo "Building SDL from pre-downloaded source..."
           cp -r sdl-source sdl-build
           cd sdl-build
           mkdir build
@@ -245,26 +342,21 @@ jobs:
           echo "Building Manic Miner..."
           make
           
-          echo "Verifying binary architecture..."
           file manicminer
-          
-          echo "Creating binary distribution..."
           mkdir -p dist
           cp manicminer dist/manicminer-aarch64
           tar -czf manicminer-linux-arm64.tar.gz -C dist .
-          
-          ls -la *.tar.gz
 
-    - name: Upload ARM64 artifacts (alternative)
+    - name: Upload simple ARM64 artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: manicminer-arm64-alternative
+        name: manicminer-arm64-simple
         path: |
           manicminer-linux-arm64.tar.gz
         retention-days: 7
 
   create-release:
-    needs: [build-x86_64, build-arm64]
+    needs: [build-x86_64, build-arm64-simple]  # Use the simple approach by default
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     
@@ -274,52 +366,21 @@ jobs:
       with:
         path: artifacts
         
-    - name: List downloaded artifacts
-      run: |
-        find artifacts -type f | sort
-        echo "Creating combined release package..."
-        
-    - name: Create combined release archive
+    - name: Create combined release
       run: |
         mkdir -p release
-        
-        # Copy all artifacts to release directory
         cp artifacts/manicminer-x86_64/manicminer-x86_64.AppImage release/
         cp artifacts/manicminer-x86_64/manicminer-linux-x86_64.tar.gz release/
-        cp artifacts/manicminer-arm64/manicminer-linux-arm64.tar.gz release/
+        cp artifacts/manicminer-arm64-simple/manicminer-linux-arm64.tar.gz release/
         
-        # Create SHA256 checksums
         cd release
         for file in *; do
-          if [ -f "$file" ]; then
-            sha256sum "$file" > "$file.sha256"
-          fi
+          sha256sum "$file" > "$file.sha256"
         done
         
-        # Create README with build info
-        cat > README.txt << EOF
-        Manic Miner Multi-Architecture Build
-        ====================================
-        
-        Built from: ${{ github.sha }}
-        Build date: $(date -u)
-        
-        Files:
-        - manicminer-x86_64.AppImage: AppImage for x86_64 (Intel/AMD) systems
-        - manicminer-linux-x86_64.tar.gz: Binary archive for x86_64 systems
-        - manicminer-linux-arm64.tar.gz: Binary archive for ARM64 systems
-        
-        Verify checksums with: sha256sum -c *.sha256
-        
-        Notes:
-        - ARM64 build is provided as a binary archive only
-        - x86_64 build includes both AppImage and binary archive
-        EOF
-        
-        # Create combined zip for easy download
         zip -r manicminer-multi-arch-release.zip *
         
-    - name: Upload combined release
+    - name: Upload final release
       uses: actions/upload-artifact@v4
       with:
         name: manicminer-combined-release
