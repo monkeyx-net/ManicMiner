@@ -23,6 +23,7 @@ jobs:
       run: |
         git config user.email "tim@monkeyx.net"
         git config user.name "monkeyx-net"
+        git status
         git add latest/.
         git commit -m "Update latest folder" || exit 0
         git push
