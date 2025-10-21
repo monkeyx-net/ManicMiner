@@ -178,7 +178,7 @@ jobs:
         cp manicminer pm/manicminer/manicminer.x86_64
         chmod +x pm/manicminer/manicminer.x86_64
         cd pm
-        zip -r ../manicminer.zip ../
+        zip -r ../manicminer.zip .
 
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v4
