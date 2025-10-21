@@ -12,14 +12,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-       - name: Build in ARM64 container
+    - name: Build in ARM64 container
       run: |
         docker run --rm \
           --platform linux/arm64 \
           -v $PWD:/workspace \
           -w /workspace \
           -e DEBIAN_FRONTEND=noninteractive \
-          arm64v8/ubuntu:22.04 \
+          arm64v8/ubuntu:20.04 \
           /bin/bash -c "
           apt-get update
           apt-get install -y build-essential make cmake file wget tar \
