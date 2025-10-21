@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  
   build-arm64:
     runs-on: ubuntu-latest
     steps:
@@ -18,7 +17,7 @@ jobs:
 
     - name: Download SDL source
       run: |
-        wget -O sdl.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.2.tar.gz
+        wget -q -O sdl.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.2.tar.gz
         tar -xzf sdl.tar.gz
         mv SDL-release-2.30.2 sdl-source
 
@@ -30,24 +29,38 @@ jobs:
           -w /workspace \
           arm64v8/ubuntu:22.04 \
           /bin/bash -c "
-          apt-get update &&
+          set -e
+          apt-get update
           apt-get install -y build-essential make cmake \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            libpipewire-0.3-dev pkg-config &&
-          cd sdl-source &&
-          mkdir build && cd build &&
-          cmake -DCMAKE_BUILD_TYPE=Release .. &&
-          make -j\$(nproc) &&
-          cd ../.. &&
-          make &&
-          file manicminer &&
-          mkdir -p dist &&
-          cp manicminer dist/manicminer-aarch64 &&
+            pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libxi-dev libxinerama-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev libaudio-dev libjack-dev libsamplerate0-dev \
+            libgbm-dev libegl1-mesa-dev libgles2-mesa-dev libgl1-mesa-dev libglu1-mesa-dev
+          
+          echo '=== Building SDL ==='
+          cd sdl-source
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
+          make -j\$(nproc)
+          make install
+          cd ../..
+          
+          echo '=== Building Manic Miner ==='
+          make
+          
+          echo '=== Creating distribution ==='
+          mkdir -p dist
+          cp manicminer dist/manicminer-aarch64
+          strip dist/manicminer-aarch64
           tar -czf manicminer-linux-arm64.tar.gz -C dist .
+          
+          echo '=== Build info ==='
+          file dist/manicminer-aarch64
+          ls -lh manicminer-linux-arm64.tar.gz
           "
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: manicminer-arm64
+        name: manicminer-linux-arm64
         path: manicminer-linux-arm64.tar.gz
