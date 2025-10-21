@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
-    branches: [ main ]
+    branches: [ mingw ]
 
 jobs:
   build:
@@ -32,7 +32,8 @@ jobs:
           libpipewire-0.3-dev \
           libfuse2 \
           build-essential \
-          make
+          make \
+          patchelf  # Added for AppImage library handling
 
     - name: Build SDL library (if needed)
       run: |
@@ -99,16 +100,72 @@ jobs:
           cp src/manicminer.png AppDir/
         fi
         
-        # Copy required libraries
-        cd AppDir
-        ln -s usr/bin/manicminer AppRun
-        ln -s usr/share/applications/manicminer.desktop manicminer.desktop
-        cd ..
+        # Copy required libraries using ldd
+        echo "Copying required libraries..."
+        mkdir -p AppDir/usr/lib
+        
+        # Function to copy libraries recursively
+        copy_libs() {
+          local binary=$1
+          ldd "$binary" | while read -r line; do
+            # Extract library path
+            if [[ $line == *" => "* ]]; then
+              lib_path=$(echo "$line" | awk -F '=> ' '{print $2}' | awk '{print $1}')
+              if [[ "$lib_path" == /* && -f "$lib_path" ]]; then
+                # Skip system libraries that should be available on target systems
+                if [[ "$lib_path" != /lib/* && "$lib_path" != /usr/lib/* ]]; then
+                  echo "Copying: $lib_path"
+                  cp --parents "$lib_path" AppDir/
+                else
+                  # Copy essential SDL and graphics libraries
+                  if [[ "$lib_path" == *"libSDL"* || \
+                        "$lib_path" == *"libpng"* || \
+                        "$lib_path" == *"libjpeg"* || \
+                        "$lib_path" == *"libtiff"* || \
+                        "$lib_path" == *"libwebp"* || \
+                        "$lib_path" == *"libfreetype"* || \
+                        "$lib_path" == *"libpipewire"* || \
+                        "$lib_path" == *"libvulkan"* || \
+                        "$lib_path" == *"libGL"* || \
+                        "$lib_path" == *"libasound"* || \
+                        "$lib_path" == *"libpulse"* ]]; then
+                    echo "Copying system library: $lib_path"
+                    cp --parents "$lib_path" AppDir/
+                  fi
+                fi
+              fi
+            fi
+          done
+        }
+        
+        # Copy libraries for the main binary
+        copy_libs "manicminer"
+        
+        # Also copy any additional binaries in the AppDir
+        for binary in AppDir/usr/bin/*; do
+          if [ -f "$binary" ] && [ -x "$binary" ]; then
+            copy_libs "$binary"
+          fi
+        done
         
         # Copy SDL library if custom built
         if [ -f "sdl-build/build/libSDL2-2.0.so.0" ]; then
           cp sdl-build/build/libSDL2-2.0.so.0 AppDir/usr/lib/
+          # Also copy any other SDL libraries from custom build
+          cp sdl-build/build/libSDL2*.so* AppDir/usr/lib/ 2>/dev/null || true
         fi
+        
+        # Set up AppRun and desktop file
+        cd AppDir
+        cat > AppRun << 'EOF'
+#!/bin/bash
+HERE="$(dirname "$(readlink -f "${0}")")"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+exec "${HERE}/usr/bin/manicminer" "$@"
+EOF
+        chmod +x AppRun
+        ln -sf usr/share/applications/manicminer.desktop manicminer.desktop
+        cd ..
         
         # Generate AppImage
         ./appimagetool AppDir manicminer-x86_64.AppImage
