@@ -16,8 +16,9 @@ jobs:
         curl -L -o temp.zip "https://github.com/PortsMaster/PortMaster-New/releases/download/2025-10-04_1030/manicminer.zip"
         rm -rf latest
         mkdir latest
+        pwd
         unzip -q temp.zip -d latest/
-        ls -ltr /latest
+        ls -ltr latest/
         rm temp.zip
         
     - name: Commit changes
