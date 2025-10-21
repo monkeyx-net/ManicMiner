@@ -158,11 +158,11 @@ jobs:
         # Set up AppRun and desktop file
         cd AppDir
         cat > AppRun << 'EOF'
-#!/bin/bash
-HERE="$(dirname "$(readlink -f "${0}")")"
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-exec "${HERE}/usr/bin/manicminer" "$@"
-EOF
+        #!/bin/bash
+        HERE="$(dirname "$(readlink -f "${0}")")"
+        export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+        exec "${HERE}/usr/bin/manicminer" "$@"
+        EOF
         chmod +x AppRun
         ln -sf usr/share/applications/manicminer.desktop manicminer.desktop
         cd ..
