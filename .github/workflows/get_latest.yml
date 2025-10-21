@@ -26,6 +26,7 @@ jobs:
         git config user.email "tim@monkeyx.net"
         git config user.name "monkeyx-net"
         git status
-        git add -A latest/
+        git add latest/
+        git add latest/manicminer/
         git commit -m "Update latest folder" || exit 0
         git push
