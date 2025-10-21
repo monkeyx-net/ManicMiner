@@ -172,13 +172,13 @@ jobs:
 
         # Generate PortMaster
         mkdir -p pm/manicminer
+        cp latest/*.sh pm/
+        cp latest/manicminer/ports.json pm/manicminer/
+        cp ../latest/manicminer/*.png pm/manicminer/
+        cp ../manicminer pm/manicminer/manicminer.x86_64
+        chmod +x pm/manicminer/manicminer.x86_64
         cd pm
-        ls -ltr /home/runner/work/ManicMiner/ManicMiner/ 
-        # cp /latest/ports.json manicminer/
-        # cp /latest/*.png ../manicminer/
-        cp manicminer manicminer/manicminer.x86_64
-        chmod +x manicminer/manicminer.x86_64
-        zip -r ../manicminer.zip .
+        zip -r ../manicminer.zip ../
 
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v4
