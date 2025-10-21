@@ -145,7 +145,7 @@ jobs:
         arch: aarch64
         distro: ubuntu22.04
         githubToken: ${{ github.token }}
-        # Use sudo for package installation
+        # Install ALL dependencies including git in setup phase
         setup: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -193,6 +193,72 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: manicminer-arm64
+        path: |
+          manicminer-linux-arm64.tar.gz
+        retention-days: 7
+
+  # Alternative: Pre-download SDL source to avoid git in ARM64 environment
+  build-arm64-alternative:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+      
+    - name: Download SDL source
+      run: |
+        SDL_RELEASE_TAG=release-2.30.2
+        wget -O sdl-source.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/${SDL_RELEASE_TAG}.tar.gz
+        tar -xzf sdl-source.tar.gz
+        mv SDL-${SDL_RELEASE_TAG#release-} sdl-source
+        
+    - name: Build for ARM64 (without git)
+      uses: uraimo/run-on-arch-action@v2
+      with:
+        arch: aarch64
+        distro: ubuntu22.04
+        githubToken: ${{ github.token }}
+        setup: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            make \
+            file \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libsdl2-mixer-dev \
+            libsdl2-ttf-dev \
+            libpipewire-0.3-dev \
+            cmake \
+            pkg-config
+        run: |
+          cd /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}
+          
+          echo "Building SDL library from pre-downloaded source..."
+          cp -r sdl-source sdl-build
+          cd sdl-build
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j$(nproc)
+          cd ../..
+          
+          echo "Building Manic Miner..."
+          make
+          
+          echo "Verifying binary architecture..."
+          file manicminer
+          
+          echo "Creating binary distribution..."
+          mkdir -p dist
+          cp manicminer dist/manicminer-aarch64
+          tar -czf manicminer-linux-arm64.tar.gz -C dist .
+          
+          ls -la *.tar.gz
+
+    - name: Upload ARM64 artifacts (alternative)
+      uses: actions/upload-artifact@v4
+      with:
+        name: manicminer-arm64-alternative
         path: |
           manicminer-linux-arm64.tar.gz
         retention-days: 7
