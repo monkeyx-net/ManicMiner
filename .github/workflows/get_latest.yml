@@ -1,0 +1,28 @@
+name: Download and Unzip
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download-unzip:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download and extract zip file
+      run: |
+        # Replace with your actual URL
+        curl -L -o temp.zip "https://github.com/PortsMaster/PortMaster-New/releases/download/2025-10-04_1030/manicminer.zip"
+        rm -rf latest
+        mkdir latest
+        unzip -q temp.zip -d latest/
+        rm temp.zip
+        
+    - name: Commit changes
+      run: |
+        git config user.email "tim@monkeyx.net"
+        git config user.name "monkeyx-net"
+        git add latest/
+        git commit -m "Update latest folder" || exit 0
+        git push
