@@ -9,8 +9,56 @@ on:
     branches: [ mingw ]
 
 jobs:
+  build-arm64:
+    runs-on: ubuntu-22.04-arm
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build in ARM64 container
+      run: |
+        docker run --rm \
+          --platform linux/arm64 \
+          -v $PWD:/workspace \
+          -w /workspace \
+          -e DEBIAN_FRONTEND=noninteractive \
+          arm64v8/ubuntu:20.04 \
+          /bin/bash -c "
+          apt-get update
+          apt-get install -y build-essential make cmake file wget tar \
+            pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libxi-dev libxinerama-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev libaudio-dev libjack-dev libsamplerate0-dev \
+            libgbm-dev libegl1-mesa-dev libgles2-mesa-dev libgl1-mesa-dev libglu1-mesa-dev
+          
+          wget -q -O sdl.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.2.tar.gz
+          tar -xzf sdl.tar.gz
+          mv SDL-release-2.30.2 sdl-source
+          
+          cd sdl-source
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
+          make -j\$(nproc)
+          make install
+          cd ../..
+          
+          make
+          mkdir -p dist
+          cp manicminer dist/manicminer-aarch64
+          strip dist/manicminer-aarch64
+          tar -czf manicminer-linux-arm64.tar.gz -C dist .
+          "
+
+    - name: Upload ARM64 binary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: manicminer-linux-arm64
+        path: manicminer-linux-arm64.tar.gz
+        retention-days: 7
+
   build-x86_64:
     runs-on: ubuntu-latest
+    needs: build-arm64  # Wait for ARM64 build to complete
     steps:
     - name: Checkout source code
       uses: actions/checkout@v4
@@ -33,11 +81,10 @@ jobs:
           libfuse2 \
           build-essential \
           make \
-          patchelf  # Added for AppImage library handling
+          patchelf
 
     - name: Build SDL library (if needed)
       run: |
-        # Only build SDL if your project requires specific version/features
         if [ -f "Makefile" ] && grep -q "SDL" "Makefile"; then
           echo "Using system SDL libraries"
         else
@@ -50,7 +97,6 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
           
-          # Fixed PipeWire check
           if ! grep -q "PKG_PIPEWIRE_VERSION:INTERNAL=" CMakeCache.txt; then
             echo "SDL library configured with PipeWire support"
           else
@@ -58,7 +104,6 @@ jobs:
           fi
           
           make -j$(nproc)
-          # Set environment variables to use custom build
           export SDL2_DIR=$(pwd)
           cd ../..
         fi
@@ -66,6 +111,19 @@ jobs:
     - name: Build Manic Miner
       run: |
         make
+
+    - name: Download ARM64 artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: manicminer-linux-arm64
+        path: arm64-artifact
+
+    - name: Extract ARM64 binary
+      run: |
+        tar -xzf arm64-artifact/manicminer-linux-arm64.tar.gz -C arm64-artifact/
+        # Verify the binary exists and is ARM64
+        file arm64-artifact/manicminer-aarch64 || echo "ARM64 binary not found"
+        ls -la arm64-artifact/
 
     - name: Download AppImage tool
       run: |
@@ -170,13 +228,18 @@ jobs:
         # Generate AppImage
         ./appimagetool AppDir manicminer-x86_64.AppImage
 
-        # Generate PortMaster
+    - name: Generate PortMaster package with both architectures
+      run: |
         mkdir -p pm/manicminer
-        cp latest/*.sh pm/
-        cp latest/manicminer/port.json pm/manicminer/
-        cp latest/manicminer/*.png pm/manicminer/
+        cp latest/*.sh pm/ 2>/dev/null || true
+        cp latest/manicminer/*.png *.txt *.json *.md *.xml *.gptk manicminer.armhf pm/manicminer/ 2>/dev/null || true
+        
         cp manicminer pm/manicminer/manicminer.x86_64
-        chmod +x pm/manicminer/manicminer.x86_64
+        strip pm/manicminer/manicminer.x86_64
+        chmod +x pm/manicminer/manicminer.x86_64        
+        cp arm64-artifact/manicminer-aarch64 pm/manicminer/manicminer.aarch64
+        chmod +x pm/manicminer/manicminer.aarch64
+
         cd pm
         zip -r ../manicminer.zip .
 
@@ -187,55 +250,9 @@ jobs:
         path: manicminer-x86_64.AppImage
         retention-days: 7
 
-    - name: Upload binary artifact
+    - name: Upload multi-arch PortMaster artifact
       uses: actions/upload-artifact@v4
       with:
         name: manicminer-portmaster
         path: manicminer.zip
         retention-days: 7
-
-  build-arm64:
-    runs-on: ubuntu-22.04-arm
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Build in ARM64 container
-      run: |
-        docker run --rm \
-          --platform linux/arm64 \
-          -v $PWD:/workspace \
-          -w /workspace \
-          -e DEBIAN_FRONTEND=noninteractive \
-          arm64v8/ubuntu:20.04 \
-          /bin/bash -c "
-          apt-get update
-          apt-get install -y build-essential make cmake file wget tar \
-            pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libxi-dev libxinerama-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev \
-            libasound2-dev libpulse-dev libaudio-dev libjack-dev libsamplerate0-dev \
-            libgbm-dev libegl1-mesa-dev libgles2-mesa-dev libgl1-mesa-dev libglu1-mesa-dev
-          
-          wget -q -O sdl.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.2.tar.gz
-          tar -xzf sdl.tar.gz
-          mv SDL-release-2.30.2 sdl-source
-          
-          cd sdl-source
-          mkdir -p build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
-          make -j\$(nproc)
-          make install
-          cd ../..
-          
-          make
-          mkdir -p dist
-          cp manicminer dist/manicminer-aarch64
-          strip dist/manicminer-aarch64
-          tar -czf manicminer-linux-arm64.tar.gz -C dist .
-          "
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: manicminer-linux-arm64
-        path: manicminer-linux-arm64.tar.gz
