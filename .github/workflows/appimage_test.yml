@@ -2,10 +2,11 @@ name: Build Manic Miner Multi-Arch
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ mingw ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
+    branches: [ mingw ]
 
 jobs:
   build-x86_64:
@@ -152,15 +153,11 @@ jobs:
             build-essential \
             make \
             file \
-            wget \
-            fuse \
-            libfuse2 \
             libsdl2-dev \
             libsdl2-image-dev \
             libsdl2-mixer-dev \
             libsdl2-ttf-dev \
             libpipewire-0.3-dev \
-            appstream \
             cmake \
             pkg-config
         run: |
@@ -184,99 +181,18 @@ jobs:
           echo "Verifying binary architecture..."
           file manicminer
           
-          echo "Downloading AppImage tool..."
-          wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage
-          chmod +x appimagetool
-          
-          echo "Packaging AppImage..."
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/lib
-          mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          
-          cat > AppDir/usr/share/applications/manicminer.desktop << EOF
-          [Desktop Entry]
-          Name=Manic Miner
-          Exec=manicminer
-          Icon=manicminer
-          Type=Application
-          Categories=Game;
-          EOF
-          
-          cp manicminer AppDir/usr/bin/
-          chmod +x AppDir/usr/bin/manicminer
-          
-          if [ -f "src/manicminer.png" ]; then
-            cp src/manicminer.png AppDir/usr/share/icons/hicolor/256x256/apps/
-            cp src/manicminer.png AppDir/
-          fi
-          
-          cd AppDir
-          ln -s usr/bin/manicminer AppRun
-          ln -s usr/share/applications/manicminer.desktop manicminer.desktop
-          cd ..
-          
-          if [ -f "sdl-build/build/libSDL2-2.0.so.0" ]; then
-            cp sdl-build/build/libSDL2-2.0.so.0 AppDir/usr/lib/
-          fi
-          
-          ./appimagetool AppDir manicminer-aarch64.AppImage
-          
+          echo "Creating binary distribution..."
           mkdir -p dist
           cp manicminer dist/manicminer-aarch64
           tar -czf manicminer-linux-arm64.tar.gz -C dist .
           
           # List created files
-          ls -la *.AppImage *.tar.gz
+          ls -la *.tar.gz
 
     - name: Upload ARM64 artifacts
       uses: actions/upload-artifact@v4
       with:
         name: manicminer-arm64
-        path: |
-          manicminer-aarch64.AppImage
-          manicminer-linux-arm64.tar.gz
-        retention-days: 7
-
-  # Alternative ARM64 build using docker/build-push-action (more reliable)
-  build-arm64-alternative:
-    runs-on: ubuntu-latest
-    if: false  # Set to true if you want to use this alternative method
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-      
-    - name: Build using Docker
-      run: |
-        docker run --rm --privileged tonistiigi/binfmt:latest --install all
-        
-        docker run --rm -v $PWD:/workspace -w /workspace \
-          arm64v8/ubuntu:22.04 \
-          /bin/bash -c "
-          apt-get update &&
-          apt-get install -y build-essential make git wget fuse libfuse2 \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            libpipewire-0.3-dev cmake pkg-config &&
-          git clone https://github.com/libsdl-org/SDL.git sdl-build &&
-          cd sdl-build &&
-          git checkout release-2.30.2 &&
-          mkdir build && cd build &&
-          cmake -DCMAKE_BUILD_TYPE=Release .. &&
-          make -j4 &&
-          cd ../.. &&
-          make &&
-          mkdir -p dist &&
-          cp manicminer dist/manicminer-arm64 &&
-          tar -czf manicminer-linux-arm64.tar.gz -C dist .
-          "
-
-    - name: Upload ARM64 artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: manicminer-arm64-alternative
         path: |
           manicminer-linux-arm64.tar.gz
         retention-days: 7
@@ -304,7 +220,6 @@ jobs:
         # Copy all artifacts to release directory
         cp artifacts/manicminer-x86_64/manicminer-x86_64.AppImage release/
         cp artifacts/manicminer-x86_64/manicminer-linux-x86_64.tar.gz release/
-        cp artifacts/manicminer-arm64/manicminer-aarch64.AppImage release/
         cp artifacts/manicminer-arm64/manicminer-linux-arm64.tar.gz release/
         
         # Create SHA256 checksums
@@ -325,11 +240,14 @@ jobs:
         
         Files:
         - manicminer-x86_64.AppImage: AppImage for x86_64 (Intel/AMD) systems
-        - manicminer-aarch64.AppImage: AppImage for ARM64 systems
-        - manicminer-linux-x86_64.tar.gz: Binary archive for x86_64
-        - manicminer-linux-arm64.tar.gz: Binary archive for ARM64
+        - manicminer-linux-x86_64.tar.gz: Binary archive for x86_64 systems
+        - manicminer-linux-arm64.tar.gz: Binary archive for ARM64 systems
         
         Verify checksums with: sha256sum -c *.sha256
+        
+        Notes:
+        - ARM64 build is provided as a binary archive only
+        - x86_64 build includes both AppImage and binary archive
         EOF
         
         # Create combined zip for easy download
