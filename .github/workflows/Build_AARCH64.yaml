@@ -7,55 +7,39 @@ on:
 
 jobs:
   build-arm64:
-    runs-on: ubuntu-22.04-arm  # Native ARM64 runner
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install dependencies
+    - name: Build in ARM64 container
       run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential make cmake file \
-          pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
-          libxi-dev libxinerama-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev \
-          libasound2-dev libpulse-dev libaudio-dev libjack-dev libsamplerate0-dev \
-          libgbm-dev libegl1-mesa-dev libgles2-mesa-dev libgl1-mesa-dev libglu1-mesa-dev \
-          wget tar
-
-    - name: Download and build SDL
-      run: |
-        echo '=== Downloading SDL ==='
-        wget -q -O sdl.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.2.tar.gz
-        tar -xzf sdl.tar.gz
-        mv SDL-release-2.30.2 sdl-source
-
-        echo '=== Building SDL ==='
-        cd sdl-source
-        mkdir -p build && cd build
-        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
-        make -j$(nproc)
-        sudo make install
-        cd ../..
-
-    - name: Build Manic Miner
-      run: |
-        echo '=== Building Manic Miner ==='
-        make
-
-    - name: Create distribution
-      run: |
-        echo '=== Creating distribution ==='
-        mkdir -p dist
-        cp manicminer dist/manicminer-aarch64
-        strip dist/manicminer-aarch64
-
-        echo '=== Build info ==='
-        file dist/manicminer-aarch64
-        ldd dist/manicminer-aarch64 || true
-        ls -lh dist/manicminer-aarch64
-
-        tar -czf manicminer-linux-arm64.tar.gz -C dist .
-        ls -lh manicminer-linux-arm64.tar.gz
+        docker run --rm \
+          --platform linux/arm64 \
+          -v $PWD:/workspace \
+          -w /workspace \
+          arm64v8/ubuntu:20.04 \
+          /bin/bash -c "
+          apt-get update
+          apt-get install -y build-essential make cmake file wget tar \
+            pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libxi-dev libxinerama-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev libaudio-dev libjack-dev libsamplerate0-dev \
+            libgbm-dev libegl1-mesa-dev libgles2-mesa-dev libgl1-mesa-dev libglu1-mesa-dev
+          
+          cd sdl-source
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
+          make -j\$(nproc)
+          make install
+          cd ../..
+          
+          make
+          mkdir -p dist
+          cp manicminer dist/manicminer-aarch64
+          strip dist/manicminer-aarch64
+          tar -czf manicminer-linux-arm64.tar.gz -C dist .
+          "
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
