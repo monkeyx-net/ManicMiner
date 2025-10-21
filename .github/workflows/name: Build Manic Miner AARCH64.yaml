@@ -1,0 +1,57 @@
+name: Build Manic Miner AARCH64
+
+on:
+  push:
+    branches: [ mingw ]
+  workflow_dispatch:
+
+jobs:
+  build-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      # ... your existing x86_64 steps ...
+
+  build-arm64:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Download SDL source
+      run: |
+        wget -O sdl.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.2.tar.gz
+        tar -xzf sdl.tar.gz
+        mv SDL-release-2.30.2 sdl-source
+
+    - name: Build in ARM64 container
+      run: |
+        docker run --rm \
+          --platform linux/arm64 \
+          -v $PWD:/workspace \
+          -w /workspace \
+          arm64v8/ubuntu:22.04 \
+          /bin/bash -c "
+          apt-get update &&
+          apt-get install -y build-essential make cmake \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libpipewire-0.3-dev pkg-config &&
+          cd sdl-source &&
+          mkdir build && cd build &&
+          cmake -DCMAKE_BUILD_TYPE=Release .. &&
+          make -j\$(nproc) &&
+          cd ../.. &&
+          make &&
+          file manicminer &&
+          mkdir -p dist &&
+          cp manicminer dist/manicminer-aarch64 &&
+          tar -czf manicminer-linux-arm64.tar.gz -C dist .
+          "
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: manicminer-arm64
+        path: manicminer-linux-arm64.tar.gz
