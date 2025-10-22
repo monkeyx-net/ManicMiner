@@ -1,4 +1,4 @@
-name: Build Manic Miner Multi-Architecture
+name: Build Multi-Architecture for PortMaster
 
 on:
   push:
@@ -7,6 +7,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
     branches: [ mingw ]
+
+env:
+  game: manicminer
 
 jobs:
   build-arm64:
@@ -17,6 +20,7 @@ jobs:
 
     - name: Build in ARM64 container
       run: |
+        game="${{ env.game }}"
         docker run --rm \
           --platform linux/arm64 \
           -v $PWD:/workspace \
@@ -44,21 +48,21 @@ jobs:
           
           make
           mkdir -p dist
-          cp manicminer dist/manicminer-aarch64
-          strip dist/manicminer-aarch64
-          tar -czf manicminer-linux-arm64.tar.gz -C dist .
+          cp $game dist/${game}-aarch64
+          strip dist/${game}-aarch64
+          tar -czf ${game}-linux-arm64.tar.gz -C dist .
           "
 
     - name: Upload ARM64 binary artifact
       uses: actions/upload-artifact@v4
       with:
-        name: manicminer-linux-arm64
-        path: manicminer-linux-arm64.tar.gz
+        name: ${{ env.game }}-linux-arm64
+        path: ${{ env.game }}-linux-arm64.tar.gz
         retention-days: 7
 
   build-x86_64:
     runs-on: ubuntu-latest
-    needs: build-arm64  # Wait for ARM64 build to complete
+    needs: build-arm64
     steps:
     - name: Checkout source code
       uses: actions/checkout@v4
@@ -108,21 +112,21 @@ jobs:
           cd ../..
         fi
 
-    - name: Build Manic Miner
+    - name: Build ${{ env.game }}
       run: |
         make
 
     - name: Download ARM64 artifact
       uses: actions/download-artifact@v4
       with:
-        name: manicminer-linux-arm64
+        name: ${{ env.game }}-linux-arm64
         path: arm64-artifact
 
     - name: Extract ARM64 binary
       run: |
-        tar -xzf arm64-artifact/manicminer-linux-arm64.tar.gz -C arm64-artifact/
-        # Verify the binary exists and is ARM64
-        file arm64-artifact/manicminer-aarch64 || echo "ARM64 binary not found"
+        game="${{ env.game }}"
+        tar -xzf arm64-artifact/${game}-linux-arm64.tar.gz -C arm64-artifact/
+        file arm64-artifact/${game}-aarch64 || echo "ARM64 binary not found"
         ls -la arm64-artifact/
 
     - name: Download AppImage tool
@@ -130,8 +134,9 @@ jobs:
         wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
         chmod +x appimagetool
 
-    - name: Package Manic Miner into AppImage
+    - name: Package ${{ env.game }} into AppImage
       run: |
+        game="${{ env.game }}"
         # Create AppDir structure
         mkdir -p AppDir/usr/bin
         mkdir -p AppDir/usr/lib
@@ -139,23 +144,23 @@ jobs:
         mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
         
         # Create desktop entry
-        cat > AppDir/usr/share/applications/manicminer.desktop << EOF
+        cat > AppDir/usr/share/applications/${game}.desktop << EOF
         [Desktop Entry]
         Name=Manic Miner
-        Exec=manicminer
-        Icon=manicminer
+        Exec=$game
+        Icon=$game
         Type=Application
         Categories=Game;
         EOF
         
         # Copy binary
-        cp manicminer AppDir/usr/bin/
-        chmod +x AppDir/usr/bin/manicminer
+        cp $game AppDir/usr/bin/
+        chmod +x AppDir/usr/bin/$game
         
         # Copy icon (assuming it exists)
-        if [ -f "src/manicminer.png" ]; then
-          cp src/manicminer.png AppDir/usr/share/icons/hicolor/256x256/apps/
-          cp src/manicminer.png AppDir/
+        if [ -f "src/${game}.png" ]; then
+          cp src/${game}.png AppDir/usr/share/icons/hicolor/256x256/apps/
+          cp src/${game}.png AppDir/
         fi
         
         # Copy required libraries using ldd
@@ -197,7 +202,7 @@ jobs:
         }
         
         # Copy libraries for the main binary
-        copy_libs "manicminer"
+        copy_libs "$game"
         
         # Also copy any additional binaries in the AppDir
         for binary in AppDir/usr/bin/*; do
@@ -219,40 +224,41 @@ jobs:
         #!/bin/bash
         HERE="$(dirname "$(readlink -f "${0}")")"
         export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-        exec "${HERE}/usr/bin/manicminer" "$@"
+        exec "${HERE}/usr/bin/'"$game"'" "$@"
         EOF
         chmod +x AppRun
-        ln -sf usr/share/applications/manicminer.desktop manicminer.desktop
+        ln -sf usr/share/applications/${game}.desktop ${game}.desktop
         cd ..
         
         # Generate AppImage
-        ./appimagetool AppDir manicminer-x86_64.AppImage
+        ./appimagetool AppDir ${game}-x86_64.AppImage
 
     - name: Generate PortMaster package with both architectures
       run: |
-        mkdir -p pm/manicminer
+        game="${{ env.game }}"
+        mkdir -p pm/$game
         cp latest/*.sh pm/ 2>/dev/null || true
         chmod +x pm/*.sh
-        cp latest/manicminer/*.png latest/manicminer/*.txt latest/manicminer/*.json \
-        latest/manicminer/*.md latest/manicminer/*.xml latest/manicminer/*.gptk latest/manicminer/manicminer.armhf pm/manicminer/ 2>/dev/null || true
-        cp manicminer pm/manicminer/manicminer.x86_64
-        strip pm/manicminer/manicminer.x86_64
-        chmod +x pm/manicminer/manicminer.x86_64        
-        cp arm64-artifact/manicminer-aarch64 pm/manicminer/manicminer.aarch64
-        chmod +x pm/manicminer/manicminer.aarch64
+        cp latest/$game/*.png latest/$game/*.txt latest/$game/*.json \
+        latest/$game/*.md latest/$game/*.xml latest/$game/*.gptk latest/$game/${game}.armhf pm/$game/ 2>/dev/null || true
+        cp $game pm/$game/${game}.x86_64
+        strip pm/$game/${game}.x86_64
+        chmod +x pm/$game/${game}.x86_64        
+        cp arm64-artifact/${game}-aarch64 pm/$game/${game}.aarch64
+        chmod +x pm/$game/${game}.aarch64
         cd pm
-        zip -r ../manicminer.zip .
+        zip -r ../${game}.zip .
 
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v4
       with:
-        name: manicminer-appimage
-        path: manicminer-x86_64.AppImage
+        name: ${{ env.game }}-appimage
+        path: ${{ env.game }}-x86_64.AppImage
         retention-days: 7
 
     - name: Upload multi-arch PortMaster artifact
       uses: actions/upload-artifact@v4
       with:
-        name: manicminer-portmaster
-        path: manicminer.zip
+        name: ${{ env.game }}-portmaster
+        path: ${{ env.game }}.zip
         retention-days: 7
