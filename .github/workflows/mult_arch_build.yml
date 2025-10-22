@@ -153,19 +153,19 @@ jobs:
           cd ../..
         fi
 
-    - name: Build ${{ env.game }}
+    - name: Build ${{ steps.parse-json.outputs.game_name }}
       run: |
         make
 
     - name: Download ARM64 artifact
       uses: actions/download-artifact@v4
       with:
-        name: ${{ env.game }}-linux-arm64
+        name: ${{ steps.parse-json.outputs.game_exe }}-linux-arm64
         path: arm64-artifact
 
     - name: Extract ARM64 binary
       run: |
-        game="${{ env.game }}"
+        game="${{ steps.parse-json.outputs.game_exe }}"
         tar -xzf arm64-artifact/${game}-linux-arm64.tar.gz -C arm64-artifact/
         file arm64-artifact/${game}-aarch64 || echo "ARM64 binary not found"
         ls -la arm64-artifact/
@@ -175,9 +175,9 @@ jobs:
         wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
         chmod +x appimagetool
 
-    - name: Package ${{ env.game }} into AppImage
+    - name: Package ${{ steps.parse-json.outputs.game_name }} into AppImage
       run: |
-        game="${{ env.game }}"
+        game="${{ steps.parse-json.outputs.game_exe }}"
         # Create AppDir structure
         mkdir -p AppDir/usr/bin
         mkdir -p AppDir/usr/lib
@@ -187,9 +187,9 @@ jobs:
         # Create desktop entry
         cat > AppDir/usr/share/applications/${game}.desktop << EOF
         [Desktop Entry]
-        Name=Manic Miner
-        Exec=$game
-        Icon=$game
+        Name={{ steps.parse-json.outputs.game_name }}
+        Exec=${{ steps.parse-json.outputs.game_exe }}
+        Icon=${{ steps.parse-json.outputs.game_exe }}
         Type=Application
         Categories=Game;
         EOF
@@ -281,7 +281,7 @@ jobs:
 
     - name: Generate PortMaster package with both architectures
       run: |
-        game="${{ env.game }}"
+        game="${{ steps.parse-json.outputs.game_exe }}"
         mkdir -p pm/$game
         cp latest/*.sh pm/ 2>/dev/null || true
         chmod +x pm/*.sh
@@ -298,13 +298,13 @@ jobs:
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.game }}-appimage
-        path: ${{ env.game }}-x86_64.AppImage
+        name: ${{ steps.parse-json.outputs.game_exe }}-appimage
+        path: ${{ steps.parse-json.outputs.game_exe }}-x86_64.AppImage
         retention-days: 7
 
     - name: Upload multi-arch PortMaster artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.game }}-portmaster
-        path: ${{ env.game }}.zip
+        name: ${{ steps.parse-json.outputs.game_exe }}-portmaster
+        path: ${{ steps.parse-json.outputs.game_exe }}.zip
         retention-days: 7
