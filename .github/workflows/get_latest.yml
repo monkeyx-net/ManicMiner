@@ -23,8 +23,6 @@ jobs:
 
     - name: To port.json v4
       run: |
-       - name: Create JSON file
-      run: |
         jq '
         .version = 4 |
         .attr.image = null |
