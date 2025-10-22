@@ -57,7 +57,6 @@ jobs:
         echo "game_start=$GAME_START" >> $GITHUB_OUTPUT
         echo "exe_name=$EXE_NAME" >> $GITHUB_OUTPUT
 
-
     - name: Set environment variables for current job
       run: |
         echo "GAME=${{ steps.parse-json.outputs.game }}" >> $GITHUB_ENV
