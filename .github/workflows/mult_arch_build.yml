@@ -32,18 +32,15 @@ jobs:
           echo "Error: $PORT_JSON_PATH not found"
           exit 1
         fi
-        GAME_FOLDER=$(jq -r '.name | sub("\\.zip$"; "")' "$PORT_JSON_PATH")
+        GAME_FOLDER=$(jq -r '.items[1]' "$PORT_JSON_PATH" | sed 's|/||g')
         GAME_NAME=$(jq -r '.attr.title' "$PORT_JSON_PATH")
         GAME_ZIP=$(jq -r '.name' "$PORT_JSON_PATH")
         GAME_START=$(jq -r '.items[0]' "$PORT_JSON_PATH")
         GAME=$(echo "$GAME_FOLDER" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
         PORT_DIR=$(dirname "$PORT_JSON_PATH")
-        if [ -d "$PORT_DIR" ]; then
-          # Find first .aarch64 file and extract name
-          AARCH64_FILE=$(find "$PORT_DIR" -name "*.aarch64" -type f | head -1)
-          if [ -n "$AARCH64_FILE" ]; then
-            EXE_NAME=$(basename "$AARCH64_FILE" .aarch64)
-          fi
+        AARCH64_FILE=$(find "$PORT_DIR" -name "*.aarch64" -type f | head -1)
+        if [ -n "$AARCH64_FILE" ]; then
+          EXE_NAME=$(basename "$AARCH64_FILE" .aarch64)
         fi
         
         echo "game=$GAME" >> $GITHUB_OUTPUT
@@ -64,7 +61,7 @@ jobs:
 
     - name: Build in ARM64 container
       run: |
-        game="${{ env.game }}"
+        game="${{ steps.parse-json.outputs.game_exe }}"
         docker run --rm \
           --platform linux/arm64 \
           -v $PWD:/workspace \
@@ -100,8 +97,8 @@ jobs:
     - name: Upload ARM64 binary artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.game }}-linux-arm64
-        path: ${{ env.game }}-linux-arm64.tar.gz
+        name: ${{ steps.parse-json.outputs.game_exe }}-linux-arm64
+        path: ${{ steps.parse-json.outputs.game_exe }}-linux-arm64.tar.gz
         retention-days: 7
 
   build-x86_64:
