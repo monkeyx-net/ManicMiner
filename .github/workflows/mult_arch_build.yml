@@ -134,7 +134,7 @@ jobs:
         wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
         chmod +x appimagetool
 
-       - name: Package ${{ env.game }} into AppImage
+    - name: Package ${{ env.game }} into AppImage
       run: |
         game="${{ env.game }}"
         # Create AppDir structure
