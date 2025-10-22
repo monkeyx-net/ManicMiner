@@ -12,7 +12,6 @@ jobs:
   build-arm64:
     runs-on: ubuntu-22.04-arm
     outputs:
-      game: ${{ steps.set-vars.outputs.game }}
       game_folder: ${{ steps.set-vars.outputs.game_folder }}
       game_name: ${{ steps.set-vars.outputs.game_name }}
       game_zip: ${{ steps.set-vars.outputs.game_zip }}
@@ -36,14 +35,11 @@ jobs:
         GAME_NAME=$(jq -r '.attr.title' "$PORT_JSON_PATH")
         GAME_ZIP=$(jq -r '.name' "$PORT_JSON_PATH")
         GAME_START=$(jq -r '.items[0]' "$PORT_JSON_PATH")
-        GAME=$(echo "$GAME_FOLDER" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
         PORT_DIR=$(dirname "$PORT_JSON_PATH")
         AARCH64_FILE=$(find "$PORT_DIR" -name "*.aarch64" -type f | head -1)
         if [ -n "$AARCH64_FILE" ]; then
           EXE_NAME=$(basename "$AARCH64_FILE" .aarch64)
         fi
-        
-        echo "game=$GAME" >> $GITHUB_OUTPUT
         echo "game_folder=$GAME_FOLDER" >> $GITHUB_OUTPUT
         echo "game_name=$GAME_NAME" >> $GITHUB_OUTPUT
         echo "game_zip=$GAME_ZIP" >> $GITHUB_OUTPUT
@@ -52,7 +48,6 @@ jobs:
 
     - name: Set environment variables for current job
       run: |
-        echo "GAME=${{ steps.parse-json.outputs.game }}" >> $GITHUB_ENV
         echo "GAME_FOLDER=${{ steps.parse-json.outputs.game_folder }}" >> $GITHUB_ENV
         echo "GAME_NAME=${{ steps.parse-json.outputs.game_name }}" >> $GITHUB_ENV
         echo "GAME_ZIP=${{ steps.parse-json.outputs.game_zip }}" >> $GITHUB_ENV
@@ -107,7 +102,15 @@ jobs:
     steps:
     - name: Checkout source code
       uses: actions/checkout@v4
-      
+
+    - name: Set environment variables for current job
+      run: |
+        echo "GAME_FOLDER=${{ steps.parse-json.outputs.game_folder }}" >> $GITHUB_ENV
+        echo "GAME_NAME=${{ steps.parse-json.outputs.game_name }}" >> $GITHUB_ENV
+        echo "GAME_ZIP=${{ steps.parse-json.outputs.game_zip }}" >> $GITHUB_ENV
+        echo "GAME_START=${{ steps.parse-json.outputs.game_start }}" >> $GITHUB_ENV
+        echo "GAME_EXE=${{ steps.parse-json.outputs.game_exe }}" >> $GITHUB_ENV
+
     - name: Checkout submodules (if any)
       run: git submodule update --init --recursive
 
