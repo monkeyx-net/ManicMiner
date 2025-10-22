@@ -134,7 +134,7 @@ jobs:
         wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
         chmod +x appimagetool
 
-    - name: Package ${{ env.game }} into AppImage
+       - name: Package ${{ env.game }} into AppImage
       run: |
         game="${{ env.game }}"
         # Create AppDir structure
@@ -218,16 +218,21 @@ jobs:
           cp sdl-build/build/libSDL2*.so* AppDir/usr/lib/ 2>/dev/null || true
         fi
         
-        # Set up AppRun and desktop file
+        # Set up AppRun and desktop file - FIXED VERSION
         cd AppDir
-        cat > AppRun << 'EOF'
+        cat > AppRun << EOF
         #!/bin/bash
-        HERE="$(dirname "$(readlink -f "${0}")")"
-        export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-        exec "${HERE}/usr/bin/'"$game"'" "$@"
+        HERE="\$(dirname "\$(readlink -f "\${0}")")"
+        export LD_LIBRARY_PATH="\${HERE}/usr/lib:\${LD_LIBRARY_PATH}"
+        exec "\${HERE}/usr/bin/$game" "\$@"
         EOF
         chmod +x AppRun
         ln -sf usr/share/applications/${game}.desktop ${game}.desktop
+        
+        # Create the icon link if icon exists
+        if [ -f "usr/share/icons/hicolor/256x256/apps/${game}.png" ]; then
+          ln -sf usr/share/icons/hicolor/256x256/apps/${game}.png ./
+        fi
         cd ..
         
         # Generate AppImage
