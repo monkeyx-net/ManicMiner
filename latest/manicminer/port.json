@@ -1,34 +1,31 @@
 {
-  "version": 4,
-  "name": "manicminer.zip",
-  "items": [
-    "Manic Miner.sh",
-    "manicminer"
-  ],
-  "items_opt": [],
-  "attr": {
-    "title": "Manic Miner",
-    "porter": [
-      "Cebion"
+    "version": 2,
+    "name": "manicminer.zip",
+    "items": [
+        "Manic Miner.sh",
+        "manicminer"
     ],
-    "desc": "You can't think of the ZX Spectrum without also thinking of Manic Miner written by Matt Smith. 20 wonderfuly crafted and memorable levels of a game which has deservingly achieved legend status",
-    "inst": "Ready to play",
-    "genres": [
-      "platformer"
-    ],
-    "image": null,
-    "rtr": true,
-    "exp": false,
-    "runtime": [],
-    "reqs": [],
-    "arch": [
-      "aarch64",
-      "x86_64"
-    ],
-    "desc_md": null,
-    "inst_md": null,
-    "min_glibc": "",
-    "store": [],
-    "availability": ""
-  }
+    "items_opt": null,
+    "attr": {
+        "title": "Manic Miner",
+        "porter": [
+            "Cebion"
+        ],
+        "desc": "You can't think of the ZX Spectrum without also thinking of Manic Miner written by Matt Smith. 20 wonderfuly crafted and memorable levels of a game which has deservingly achieved legend status",
+        "inst": "Ready to play",
+        "genres": [
+            "platformer"
+        ],
+        "image": {},
+        "rtr": true,
+        "exp": false,
+        "runtime": [],
+        "reqs": [],
+        "arch": [
+            "aarch64"
+        ],
+        "desc_md": null,
+        "inst_md": null,
+        "min_glibc": ""
+    }
 }
