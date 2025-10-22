@@ -18,47 +18,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Create JSON file
-      run: |
-        jq '
-        .version = 4 |
-        .items_opt = [] |
-        .attr.arch = ["aarch64", "x86_64"] |
-        .attr.image = null |
-        .attr.store = [] |
-        .attr.availability = "" |
-        .attr.title = "Manic Miner" |
-        .attr.porter = ["Cebion"] |
-        .attr.desc = "You can'\''t think of the ZX Spectrum without also thinking of Manic Miner written by Matt Smith. 20 wonderfuly crafted and memorable levels of a game which has deservingly achieved legend status" |
-        .attr.desc_md = null |
-        .attr.inst = "Ready to play" |
-        .attr.inst_md = null |
-        .attr.genres = ["platformer"] |
-        .attr.rtr = true |
-        .attr.exp = false |
-        .attr.runtime = [] |
-        .attr.reqs = [] |
-        .attr.min_glibc = "" |
-        .attr |= {
-          title: .title,
-          porter: .porter,
-          desc: .desc,
-          desc_md: .desc_md,
-          inst: .inst,
-          inst_md: .inst_md,
-          genres: .genres,
-          image: .image,
-          rtr: .rtr,
-          exp: .exp,
-          runtime: .runtime,
-          store: .store,
-          availability: .availability,
-          reqs: .reqs,
-          arch: .arch,
-          min_glibc: .min_glibc
-        }
-        ' latest/manicminer/port.json > latest/manicminer/port_temp.json && mv latest/manicminer/port_temp.json latest/manicminer/port.json
-
     - name: Build in ARM64 container
       run: |
         game="${{ env.game }}"

@@ -23,16 +23,27 @@ jobs:
 
     - name: To port.json v4
       run: |
-       jq '
+        jq '
         .version = 4 |
         .items_opt = [] |
-        .attr.arch = ["aarch64", "x86_64"] |
-        .attr.image = null |
-        .attr.desc_md = null |
-        .attr.inst_md = null |
-        .attr.store = [] |
-        .attr.availability = "" |
-        .attr.min_glibc = ""
+        .attr |= {
+          title: .title,
+          porter: .porter,
+          desc: .desc,
+          desc_md: null,
+          inst: .inst,
+          inst_md: null,
+          genres: .genres,
+          image: null,
+          rtr: .rtr,
+          exp: .exp,
+          runtime: .runtime,
+          store: [],
+          availability: "",
+          reqs: .reqs,
+          arch: .arch,
+          min_glibc: ""
+        }
         ' latest/manicminer/port.json > latest/manicminer/port_temp.json && mv latest/manicminer/port_temp.json latest/manicminer/port.json
 
     - name: Commit changes
