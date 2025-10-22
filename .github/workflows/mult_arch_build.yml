@@ -8,15 +8,36 @@ on:
   workflow_dispatch:
     branches: [ mingw ]
 
-env:
-  game: manicminer
-
 jobs:
   build-arm64:
     runs-on: ubuntu-22.04-arm
+    outputs:
+      game: ${{ steps.set-vars.outputs.game }}
+      game_folder: ${{ steps.set-vars.outputs.game_folder }}
+      game_name: ${{ steps.set-vars.outputs.game_name }}
+      game_zip: ${{ steps.set-vars.outputs.game_zip }}
+      game_start: ${{ steps.set-vars.outputs.game_start }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Set environment variables for current job
+      run: |
+        echo "GAME=${{ steps.parse-json.outputs.game }}" >> $GITHUB_ENV
+        echo "GAME_FOLDER=${{ steps.parse-json.outputs.game_folder }}" >> $GITHUB_ENV
+        echo "GAME_NAME=${{ steps.parse-json.outputs.game_name }}" >> $GITHUB_ENV
+        echo "GAME_ZIP=${{ steps.parse-json.outputs.game_zip }}" >> $GITHUB_ENV
+        echo "GAME_START=${{ steps.parse-json.outputs.game_start }}" >> $GITHUB_ENV
+
+    - name: Verify environment variables
+      run: |
+        echo "Environment variables in current job:"
+        echo "GAME: $GAME"
+        echo "GAME_FOLDER: $GAME_FOLDER"
+        echo "GAME_NAME: $GAME_NAME"
+        echo "GAME_ZIP: $GAME_ZIP"
+        echo "GAME_START: $GAME_START"
 
     - name: Build in ARM64 container
       run: |
