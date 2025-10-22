@@ -17,7 +17,7 @@ jobs:
       game_name: ${{ steps.set-vars.outputs.game_name }}
       game_zip: ${{ steps.set-vars.outputs.game_zip }}
       game_start: ${{ steps.set-vars.outputs.game_start }}
-      exe_name: ${{ steps.parse-json.outputs.exe_name }}
+      game_exe: ${{ steps.parse-json.outputs.game_exe }}
 
     steps:
     - name: Checkout code
@@ -26,27 +26,23 @@ jobs:
     - name: Parse port.json
       id: parse-json
       run: |
-        PORT_JSON_PATH="latest/manicminer/port.json"
+        PORT_JSON_PATH="latest/manicminer/port.json" # make .env
         
         if [ ! -f "$PORT_JSON_PATH" ]; then
           echo "Error: $PORT_JSON_PATH not found"
           exit 1
         fi
-
         GAME_FOLDER=$(jq -r '.name | sub("\\.zip$"; "")' "$PORT_JSON_PATH")
         GAME_NAME=$(jq -r '.attr.title' "$PORT_JSON_PATH")
         GAME_ZIP=$(jq -r '.name' "$PORT_JSON_PATH")
         GAME_START=$(jq -r '.items[0]' "$PORT_JSON_PATH")
         GAME=$(echo "$GAME_FOLDER" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
-       
         PORT_DIR=$(dirname "$PORT_JSON_PATH")
         if [ -d "$PORT_DIR" ]; then
           # Find first .aarch64 file and extract name
           AARCH64_FILE=$(find "$PORT_DIR" -name "*.aarch64" -type f | head -1)
           if [ -n "$AARCH64_FILE" ]; then
             EXE_NAME=$(basename "$AARCH64_FILE" .aarch64)
-            echo "Found aarch64 file: $AARCH64_FILE"
-            echo "Extracted arch name: $EXE_NAME"
           fi
         fi
         
@@ -55,7 +51,7 @@ jobs:
         echo "game_name=$GAME_NAME" >> $GITHUB_OUTPUT
         echo "game_zip=$GAME_ZIP" >> $GITHUB_OUTPUT
         echo "game_start=$GAME_START" >> $GITHUB_OUTPUT
-        echo "exe_name=$EXE_NAME" >> $GITHUB_OUTPUT
+        echo "game_exe=$EXE_NAME" >> $GITHUB_OUTPUT
 
     - name: Set environment variables for current job
       run: |
@@ -64,6 +60,7 @@ jobs:
         echo "GAME_NAME=${{ steps.parse-json.outputs.game_name }}" >> $GITHUB_ENV
         echo "GAME_ZIP=${{ steps.parse-json.outputs.game_zip }}" >> $GITHUB_ENV
         echo "GAME_START=${{ steps.parse-json.outputs.game_start }}" >> $GITHUB_ENV
+        echo "GAME_EXE=${{ steps.parse-json.outputs.game_exe }}" >> $GITHUB_ENV
 
     - name: Build in ARM64 container
       run: |
