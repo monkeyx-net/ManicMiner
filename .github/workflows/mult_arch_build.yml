@@ -187,7 +187,7 @@ jobs:
         # Create desktop entry
         cat > AppDir/usr/share/applications/${game}.desktop << EOF
         [Desktop Entry]
-        Name={{ steps.parse-json.outputs.game_name }}
+        Name=${{ steps.parse-json.outputs.game_name }}
         Exec=${{ steps.parse-json.outputs.game_exe }}
         Icon=${{ steps.parse-json.outputs.game_exe }}
         Type=Application
