@@ -290,7 +290,7 @@ jobs:
         cp "latest/*.sh" pm/ 2>/dev/null || true
         chmod +x pm/*.sh
         # Remove previous aarch64 and x86_64 binaries
-        rm "${{ needs.build-arm64.outputs.game_exe }.aarch64" "${{ needs.build-arm64.outputs.game_exe }.x86_64"
+        rm "${{ needs.build-arm64.outputs.game_exe }.aarch64" "${{ needs.build-arm64.outputs.game_exe }}.x86_64"
         cp -r "latest/${{ needs.build-arm64.outputs.game_folder }}/. pm/${{ needs.build-arm64.outputs.game_folder }}/" 2>/dev/null || true
         cp $game pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.x86_64
         strip pm/$game/${game}.x86_64
