@@ -50,8 +50,8 @@ jobs:
       run: |
           # Set paths based on input or default
           GAME_DIR="${INPUT_GAME_NAME:-manicminer}"
-          INPUT_FILE="latest/$GAME_DIR/Manic Miner.sh"
-          OUTPUT_FILE="latest/$GAME_DIR/Auto Miner.sh"
+          INPUT_FILE="latest/Manic Miner.sh"
+          OUTPUT_FILE="latest/Auto Miner.sh"
 
           # Create the conversion script
           cat > convert_script.sh << 'EOF'
