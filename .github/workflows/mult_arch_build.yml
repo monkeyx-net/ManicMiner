@@ -295,7 +295,7 @@ jobs:
         cp $game pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.x86_64
         strip pm/$game/${game}.x86_64
         chmod +x pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.x86_64        
-        cp "arm64-artifact/${game}-aarch64" "pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.aarch64"
+        cp "arm64-artifact/${game}-aarch64 pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.aarch64"
         chmod +x pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.aarch64
         cd pm
         zip -r ../${game}.zip .
