@@ -46,6 +46,72 @@ jobs:
         }
         ' latest/manicminer/port.json > latest/manicminer/port_temp.json && mv latest/manicminer/port_temp.json latest/manicminer/port.json
 
+      - name: Convert shell script
+        run: |
+          # Set paths based on input or default
+          GAME_DIR="${INPUT_GAME_NAME:-manicminer}"
+          INPUT_FILE="latest/$GAME_DIR/Manic Miner.sh"
+          OUTPUT_FILE="latest/$GAME_DIR/Auto Miner.sh"
+
+          # Create the conversion script
+          cat > convert_script.sh << 'EOF'
+          #!/bin/bash
+          input_file="$1"
+          output_file="$2"
+
+          # Clear output file
+          > "$output_file"
+
+          # Flag to track if we're inside the DEVICE_ARCH condition
+          inside_device_arch_block=0
+
+          while IFS= read -r line; do
+            if [[ "$line" == *"if [ \$DEVICE_ARCH != \"x86_64\" ]; then"* ]]; then
+              inside_device_arch_block=1
+              continue
+            fi
+            if [[ $inside_device_arch_block -eq 1 ]] && [[ "$line" == "fi" ]]; then
+              inside_device_arch_block=0
+              continue
+            fi
+            if [[ $inside_device_arch_block -eq 1 ]]; then
+              continue
+            fi
+
+            case "$line" in
+              *device_info.txt*)
+                continue
+                ;;
+              *"chmod 666 /dev/uinput"*)
+                continue
+                ;;
+              *'kill -9 $(pidof gptokeyb)'*)
+                continue
+                ;;
+              *"systemctl restart oga_events"*)
+                continue
+                ;;
+              *'printf "\033c" > /dev/tty0'*)
+                continue
+                ;;
+            esac
+
+            if [[ "$line" == *"exec > >(tee \"\$GAMEDIR/log.txt\") 2>&1"* ]]; then
+              echo '> "$GAMEDIR/log.txt" && exec > >(tee "$GAMEDIR/log.txt") 2>&1' >> "$output_file"
+              continue
+            fi
+            echo "$line" >> "$output_file"
+            if [[ "$line" == *"SDL_GAMECONTROLLERCONFIG="* ]] && [[ "$line" == *"./manicminer."* ]]; then
+              echo "pm_finish" >> "$output_file"
+            fi
+          done < "$input_file"
+
+          chmod +x "$output_file"
+          echo "Successfully created $output_file"
+          EOF
+          chmod +x convert_script.sh
+          ./convert_script.sh "$INPUT_FILE" "$OUTPUT_FILE"
+
     - name: Commit changes
       run: |
         git config user.email "tim@monkeyx.net"
