@@ -286,19 +286,20 @@ jobs:
     - name: Generate PortMaster package with both architectures
       run: |
         game="${{ needs.build-arm64.outputs.game_exe }}"
-        mkdir -p "pm/${{ needs.build-arm64.outputs.game_folder }}""
-        cp "latest/*.sh pm/" 2>/dev/null || true
+        game_folder="${{ needs.build-arm64.outputs.game_folder }}"
+        mkdir -p "pm/${game_folder}"
+        cp latest/*.sh pm/ 2>/dev/null || true
         chmod +x pm/*.sh
         # Remove previous aarch64 and x86_64 binaries
-        rm "${{ needs.build-arm64.outputs.game_exe }}.aarch64" "${{ needs.build-arm64.outputs.game_exe }}.x86_64"
-        cp -r "latest/${{ needs.build-arm64.outputs.game_folder }}/. pm/${{ needs.build-arm64.outputs.game_folder }}/" 2>/dev/null || true
-        cp "$game pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.x86_64"
-        strip pm/$game/${game}.x86_64
-        chmod +x pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.x86_64        
-        cp "arm64-artifact/${game}-aarch64 pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.aarch64"
-        chmod +x pm/${{ needs.build-arm64.outputs.game_folder }}/${game}.aarch64
+        rm -f "${game}.aarch64" "${game}.x86_64" 2>/dev/null || true
+        cp -r "latest/${game_folder}/." "pm/${game_folder}/" 2>/dev/null || true
+        cp "$game" "pm/${game_folder}/${game}.x86_64"
+        strip "pm/${game_folder}/${game}.x86_64"
+        chmod +x "pm/${game_folder}/${game}.x86_64"
+        cp "arm64-artifact/${game}-aarch64" "pm/${game_folder}/${game}.aarch64"
+        chmod +x "pm/${game_folder}/${game}.aarch64"
         cd pm
-        zip -r ../${game}.zip .
+        zip -r "../${game}.zip" .
 
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v4
