@@ -46,8 +46,8 @@ jobs:
         }
         ' latest/manicminer/port.json > latest/manicminer/port_temp.json && mv latest/manicminer/port_temp.json latest/manicminer/port.json
 
-      - name: Convert shell script
-        run: |
+    - name: Convert shell script
+      run: |
           # Set paths based on input or default
           GAME_DIR="${INPUT_GAME_NAME:-manicminer}"
           INPUT_FILE="latest/$GAME_DIR/Manic Miner.sh"
