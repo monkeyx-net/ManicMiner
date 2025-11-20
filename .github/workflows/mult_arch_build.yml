@@ -1,316 +1,245 @@
-name: Build Multi-Architecture for PortMaster
+name: PortMaster Build Pipeline
 
 on:
-  push:
-    branches: [ mingw ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
-    branches: [ mingw ]
+    inputs:
+      bash_file:
+        description: 'Enter Bash filename'
+        required: true
+        default: 'Port.sh'
+      exe_file:
+        description: 'Enter executable filename'
+        required: true
+        default: 'port'
+      folder_name:
+        description: 'Enter port folder name'
+        required: true
+        default: 'some_folder'
+      port_file:
+        description: 'Enter port.json file name'
+        required: true
+        default: 'port.json'
+      sdl_version:
+        description: 'Enter SDL Version required'
+        required: true
+        default: '2.32.0'
 
 jobs:
-  build-arm64:
-    runs-on: ubuntu-22.04-arm
-    outputs:
-      game_folder: ${{ steps.parse-json.outputs.game_folder }}
-      game_name: ${{ steps.parse-json.outputs.game_name }}
-      game_zip: ${{ steps.parse-json.outputs.game_zip }}
-      game_start: ${{ steps.parse-json.outputs.game_start }}
-      game_exe: ${{ steps.parse-json.outputs.game_exe }}
+  build:
+    name: Build ${{ matrix.arch }} Binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # This allows jobs to continue even if one fails
+      matrix:
+        include:
+          - arch: x86_64
+            platform: linux/amd64
+            docker_image: ubuntu:20.04
+          - arch: aarch64
+            platform: linux/arm64
+            docker_image: ubuntu:20.04
+
+    env:
+      SDL_VERSION: ${{ github.event.inputs.sdl_version }}
+      GAME_EXE: ${{ github.event.inputs.exe_file }}
+      PORT_FILE: ${{ github.event.inputs.port_file }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Parse port.json
-      id: parse-json
-      run: |
-        PORT_JSON_PATH="latest/manicminer/port.json" # make .env
-        
-        if [ ! -f "$PORT_JSON_PATH" ]; then
-          echo "Error: $PORT_JSON_PATH not found"
-          exit 1
-        fi
-        GAME_FOLDER=$(jq -r '.items[1]' "$PORT_JSON_PATH" | sed 's|/||g')
-        GAME_NAME=$(jq -r '.attr.title' "$PORT_JSON_PATH")
-        GAME_ZIP=$(jq -r '.name' "$PORT_JSON_PATH")
-        GAME_START=$(jq -r '.items[0]' "$PORT_JSON_PATH")
-        PORT_DIR=$(dirname "$PORT_JSON_PATH")
-        AARCH64_FILE=$(find "$PORT_DIR" -name "*.aarch64" -type f | head -1)
-        if [ -n "$AARCH64_FILE" ]; then
-          EXE_NAME=$(basename "$AARCH64_FILE" .aarch64)
-        fi
-        echo "game_folder=$GAME_FOLDER" >> $GITHUB_OUTPUT
-        echo "game_name=$GAME_NAME" >> $GITHUB_OUTPUT
-        echo "game_zip=$GAME_ZIP" >> $GITHUB_OUTPUT
-        echo "game_start=$GAME_START" >> $GITHUB_OUTPUT
-        echo "game_exe=$EXE_NAME" >> $GITHUB_OUTPUT
+      - name: Parse port.json
+        id: parse-json
+        run: |
+          PORT_JSON_PATH="$PORT_FILE"
+          if [ ! -f "$PORT_JSON_PATH" ]; then
+            echo "Error: $PORT_JSON_PATH not found" && exit 1
+          fi
+          GAME_FOLDER=$(jq -r '.items[1]' "$PORT_JSON_PATH" | sed 's|/||g')
+          GAME_NAME=$(jq -r '.attr.title' "$PORT_JSON_PATH")
+          GAME_ZIP=$(jq -r '.name' "$PORT_JSON_PATH")
+          GAME_START=$(jq -r '.items[0]' "$PORT_JSON_PATH")
+          echo "game_folder=$GAME_FOLDER" >> $GITHUB_OUTPUT
+          echo "game_name=$GAME_NAME" >> $GITHUB_OUTPUT
+          echo "game_zip=$GAME_ZIP" >> $GITHUB_OUTPUT
+          echo "game_start=$GAME_START" >> $GITHUB_OUTPUT
 
-    - name: Set environment variables for current job
-      run: |
-        echo "GAME_FOLDER=${{ steps.parse-json.outputs.game_folder }}" >> $GITHUB_ENV
-        echo "GAME_NAME=${{ steps.parse-json.outputs.game_name }}" >> $GITHUB_ENV
-        echo "GAME_ZIP=${{ steps.parse-json.outputs.game_zip }}" >> $GITHUB_ENV
-        echo "GAME_START=${{ steps.parse-json.outputs.game_start }}" >> $GITHUB_ENV
-        echo "GAME_EXE=${{ steps.parse-json.outputs.game_exe }}" >> $GITHUB_ENV
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build in ARM64 container
-      run: |
-        game="${{ steps.parse-json.outputs.game_exe }}"
-        docker run --rm \
-          --platform linux/arm64 \
-          -v $PWD:/workspace \
-          -w /workspace \
-          -e DEBIAN_FRONTEND=noninteractive \
-          arm64v8/ubuntu:20.04 \
-          /bin/bash -c "
-          apt-get update
-          apt-get install -y build-essential make cmake file wget tar \
-            pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libxi-dev libxinerama-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev \
-            libasound2-dev libpulse-dev libaudio-dev libjack-dev libsamplerate0-dev \
-            libgbm-dev libegl1-mesa-dev libgles2-mesa-dev libgl1-mesa-dev libglu1-mesa-dev
-          
-          wget -q -O sdl.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.2.tar.gz
-          tar -xzf sdl.tar.gz
-          mv SDL-release-2.30.2 sdl-source
-          
-          cd sdl-source
-          mkdir -p build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
-          make -j\$(nproc)
-          make install
-          cd ../..
-          
-          make
-          mkdir -p dist
-          cp $game dist/${game}-aarch64
-          strip dist/${game}-aarch64
-          tar -czf ${game}-linux-arm64.tar.gz -C dist .
+      - name: Cache Docker dependencies
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-cache-${{ matrix.arch }}
+          key: ${{ matrix.arch }}-deps-${{ hashFiles('**/Makefile', '**/*.c', '**/*.h', '**/*.cpp', '**/*.hpp') }}
+          restore-keys: |
+            ${{ matrix.arch }}-deps-
+
+      - name: Build binary using Docker with caching
+        run: |
+          echo "Starting ${{ matrix.arch }} build on platform ${{ matrix.platform }}"
+          docker run --rm --platform ${{ matrix.platform }} \
+            -v ${{ github.workspace }}:/workspace \
+            -v /tmp/docker-cache-${{ matrix.arch }}:/cache \
+            -w /workspace \
+            ${{ matrix.docker_image }} \
+            /bin/bash -c "
+            # Set non-interactive frontend to avoid prompts
+            export DEBIAN_FRONTEND=noninteractive
+
+            # Install dependencies only if not cached
+            if [ ! -f /cache/deps-installed ]; then
+              echo '[${{ matrix.arch }}] Installing dependencies...'
+              apt-get update && \
+              apt-get install -y --no-install-recommends \
+                build-essential cmake pkg-config wget tar \
+                libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+                libsdl1.2-dev libsdl-image1.2-dev libsdl-mixer1.2-dev libsdl-ttf2.0-dev \
+                libpipewire-0.3-dev libfuse2 appstream make patchelf jq && \
+              apt-get clean && \
+              rm -rf /var/lib/apt/lists/* && \
+              touch /cache/deps-installed
+              echo '[${{ matrix.arch }}] Dependencies installed and cached'
+            else
+              echo '[${{ matrix.arch }}] Using cached dependencies'
+            fi
+
+            # Build the binary
+            echo '[${{ matrix.arch }}] Building binary...'
+            make
+
+            # Create distribution package
+            echo '[${{ matrix.arch }}] Creating distribution package...'
+            mkdir -p dist
+            cp $GAME_EXE dist/$GAME_EXE-${{ matrix.arch }}
+            strip dist/$GAME_EXE-${{ matrix.arch }} || true
+            tar -czf ${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz -C dist $GAME_EXE-${{ matrix.arch }}
+
+            echo '[${{ matrix.arch }}] Build completed successfully'
           "
 
-    - name: Upload ARM64 binary artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ steps.parse-json.outputs.game_exe }}-linux-arm64
-        path: ${{ steps.parse-json.outputs.game_exe }}-linux-arm64.tar.gz
-        retention-days: 7
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}
+          path: ${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz
+          retention-days: 7
 
-  build-x86_64:
+  package:
+    name: Package PortMaster
     runs-on: ubuntu-latest
-    needs: build-arm64
-
+    needs: build  # This will wait for ALL matrix jobs to complete
+    if: always()  # Run even if some builds fail, to package what succeeded
     steps:
-    - name: Checkout source code
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set environment variables from previous job outputs
-      run: |
-        echo "GAME_FOLDER=${{ needs.build-arm64.outputs.game_folder }}" >> $GITHUB_ENV
-        echo "GAME_NAME=${{ needs.build-arm64.outputs.game_name }}" >> $GITHUB_ENV
-        echo "GAME_ZIP=${{ needs.build-arm64.outputs.game_zip }}" >> $GITHUB_ENV
-        echo "GAME_START=${{ needs.build-arm64.outputs.game_start }}" >> $GITHUB_ENV
-        echo "GAME_EXE=${{ needs.build-arm64.outputs.game_exe }}" >> $GITHUB_ENV
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: ${{ needs.build.outputs.game_folder }}-linux-*
+          merge-multiple: true
 
-    - name: Checkout submodules (if any)
-      run: git submodule update --init --recursive
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libsdl2-dev \
-          libsdl2-image-dev \
-          libsdl2-mixer-dev \
-          libsdl2-ttf-dev \
-          appstream \
-          wget \
-          fuse \
-          libpipewire-0.3-dev \
-          libfuse2 \
-          build-essential \
-          make \
-          patchelf
-
-    - name: Build SDL library (if needed)
-      run: |
-        if [ -f "Makefile" ] && grep -q "SDL" "Makefile"; then
-          echo "Using system SDL libraries"
-        else
-          echo "Building custom SDL..."
-          SDL_RELEASE_TAG=release-2.30.2
-          git clone https://github.com/libsdl-org/SDL.git sdl-build
-          cd sdl-build
-          git checkout $SDL_RELEASE_TAG
-          mkdir build
-          cd build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
-          
-          if ! grep -q "PKG_PIPEWIRE_VERSION:INTERNAL=" CMakeCache.txt; then
-            echo "SDL library configured with PipeWire support"
-          else
-            echo "Warning: SDL library not configured with PipeWire support"
-          fi
-          
-          make -j$(nproc)
-          export SDL2_DIR=$(pwd)
-          cd ../..
-        fi
-
-    - name: Build ${{ needs.build-arm64.outputs.game_name }}
-      run: |
-        make
-
-    - name: Download ARM64 artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ needs.build-arm64.outputs.game_exe }}-linux-arm64
-        path: arm64-artifact
-
-    - name: Extract ARM64 binary
-      run: |
-        game="${{ needs.build-arm64.outputs.game_exe }}"
-        tar -xzf arm64-artifact/${game}-linux-arm64.tar.gz -C arm64-artifact/
-        file arm64-artifact/${game}-aarch64 || echo "ARM64 binary not found"
-        ls -la arm64-artifact/
-
-    - name: Download AppImage tool
-      run: |
-        wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-        chmod +x appimagetool
-
-    - name: Package ${{ needs.build-arm64.outputs.game_name }} into AppImage
-      run: |
-        game="${{ needs.build-arm64.outputs.game_exe }}"
-        # Create AppDir structure
-        mkdir -p AppDir/usr/bin
-        mkdir -p AppDir/usr/lib
-        mkdir -p AppDir/usr/share/applications
-        mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-        
-        # Create desktop entry
-        cat > AppDir/usr/share/applications/${game}.desktop << EOF
-        [Desktop Entry]
-        Name=${{ needs.build-arm64.outputs.game_name }}
-        Exec=${{ needs.build-arm64.outputs.game_exe }}
-        Icon=${{ needs.build-arm64.outputs.game_exe }}
-        Type=Application
-        Categories=Game;
-        EOF
-        
-        # Copy binary
-        cp $game AppDir/usr/bin/
-        chmod +x AppDir/usr/bin/$game
-        
-        # Copy icon (assuming it exists)
-        if [ -f "src/${game}.png" ]; then
-          cp src/${game}.png AppDir/usr/share/icons/hicolor/256x256/apps/
-          cp src/${game}.png AppDir/
-        fi
-        
-        # Copy required libraries using ldd
-        echo "Copying required libraries..."
-        mkdir -p AppDir/usr/lib
-        
-        # Function to copy libraries recursively
-        copy_libs() {
-          local binary=$1
-          ldd "$binary" | while read -r line; do
-            # Extract library path
-            if [[ $line == *" => "* ]]; then
-              lib_path=$(echo "$line" | awk -F '=> ' '{print $2}' | awk '{print $1}')
-              if [[ "$lib_path" == /* && -f "$lib_path" ]]; then
-                # Skip system libraries that should be available on target systems
-                if [[ "$lib_path" != /lib/* && "$lib_path" != /usr/lib/* ]]; then
-                  echo "Copying: $lib_path"
-                  cp --parents "$lib_path" AppDir/
-                else
-                  # Copy essential SDL and graphics libraries
-                  if [[ "$lib_path" == *"libSDL"* || \
-                        "$lib_path" == *"libpng"* || \
-                        "$lib_path" == *"libjpeg"* || \
-                        "$lib_path" == *"libtiff"* || \
-                        "$lib_path" == *"libwebp"* || \
-                        "$lib_path" == *"libfreetype"* || \
-                        "$lib_path" == *"libpipewire"* || \
-                        "$lib_path" == *"libvulkan"* || \
-                        "$lib_path" == *"libGL"* || \
-                        "$lib_path" == *"libasound"* || \
-                        "$lib_path" == *"libpulse"* ]]; then
-                    echo "Copying system library: $lib_path"
-                    cp --parents "$lib_path" AppDir/
-                  fi
-                fi
-              fi
-            fi
+      - name: Check available architectures
+        run: |
+          echo "Available artifacts:"
+          find artifacts -name "*.tar.gz" | while read f; do
+            echo " - $f"
           done
-        }
-        
-        # Copy libraries for the main binary
-        copy_libs "$game"
-        
-        # Also copy any additional binaries in the AppDir
-        for binary in AppDir/usr/bin/*; do
-          if [ -f "$binary" ] && [ -x "$binary" ]; then
-            copy_libs "$binary"
+
+          # Count available architectures
+          X64_COUNT=$(find artifacts -name "*x86_64*" | wc -l)
+          ARM64_COUNT=$(find artifacts -name "*aarch64*" | wc -l)
+          echo "x86_64 builds: $X64_COUNT"
+          echo "aarch64 builds: $ARM64_COUNT"
+
+      - name: Create PortMaster package
+        run: |
+          GAME_FOLDER="${{ needs.build.outputs.game_folder }}"
+          GAME_START="${{ needs.build.outputs.game_start }}"
+          GAME_EXE="${{ github.event.inputs.exe_file }}"
+
+          echo "Creating package for: $GAME_FOLDER"
+          echo "Game executable: $GAME_EXE"
+          echo "Start script: $GAME_START"
+
+          # Create directory structure
+          mkdir -p dist/$GAME_FOLDER
+
+          # Extract binaries from artifacts
+          echo "Extracting binaries..."
+          find artifacts -name "*.tar.gz" -exec tar -xzf {} -C dist/ \;
+
+          # Copy game files from latest directory
+          echo "Copying game files..."
+          if [ -f "latest/$GAME_START" ]; then
+            cp "latest/$GAME_START" "dist/"
+            echo "Copied start script: latest/$GAME_START"
+          else
+            echo "Warning: Start script not found at latest/$GAME_START"
           fi
-        done
-        
-        # Copy SDL library if custom built
-        if [ -f "sdl-build/build/libSDL2-2.0.so.0" ]; then
-          cp sdl-build/build/libSDL2-2.0.so.0 AppDir/usr/lib/
-          # Also copy any other SDL libraries from custom build
-          cp sdl-build/build/libSDL2*.so* AppDir/usr/lib/ 2>/dev/null || true
-        fi
-        
-        # Set up AppRun and desktop file - FIXED VERSION
-        cd AppDir
-        cat > AppRun << EOF
-        #!/bin/bash
-        HERE="\$(dirname "\$(readlink -f "\${0}")")"
-        export LD_LIBRARY_PATH="\${HERE}/usr/lib:\${LD_LIBRARY_PATH}"
-        exec "\${HERE}/usr/bin/$game" "\$@"
-        EOF
-        chmod +x AppRun
-        ln -sf usr/share/applications/${game}.desktop ${game}.desktop
-        
-        # Create the icon link if icon exists
-        if [ -f "usr/share/icons/hicolor/256x256/apps/${game}.png" ]; then
-          ln -sf usr/share/icons/hicolor/256x256/apps/${game}.png ./
-        fi
-        cd ..
-        
-        # Generate AppImage
-        ./appimagetool AppDir ${game}-x86_64.AppImage
 
-    - name: Generate PortMaster package with both architectures
-      run: |
-        game="${{ needs.build-arm64.outputs.game_exe }}"
-        game_folder="${{ needs.build-arm64.outputs.game_folder }}"
-        mkdir -p "pm/${game_folder}"
-        cp latest/*.sh pm/ 2>/dev/null || true
-        chmod +x pm/*.sh
-        # Remove previous aarch64 and x86_64 binaries
-        rm -f "${game}.aarch64" "${game}.x86_64" 2>/dev/null || true
-        cp -r "latest/${game_folder}/." "pm/${game_folder}/" 2>/dev/null || true
-        cp "$game" "pm/${game_folder}/${game}.x86_64"
-        strip "pm/${game_folder}/${game}.x86_64"
-        chmod +x "pm/${game_folder}/${game}.x86_64"
-        cp "arm64-artifact/${game}-aarch64" "pm/${game_folder}/${game}.aarch64"
-        chmod +x "pm/${game_folder}/${game}.aarch64"
-        cd pm
-        zip -r "../${game}.zip" .
+          if [ -d "latest/$GAME_FOLDER" ]; then
+            cp -r "latest/$GAME_FOLDER/." "dist/$GAME_FOLDER/"
+            echo "Copied game folder: latest/$GAME_FOLDER"
+          else
+            echo "Warning: Game folder not found at latest/$GAME_FOLDER"
+          fi
 
-    - name: Upload AppImage artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ needs.build-arm64.outputs.game_exe }}-appimage
-        path: ${{ needs.build-arm64.outputs.game_exe }}-x86_64.AppImage
-        retention-days: 7
+          # Move binaries to correct location (only if they exist)
+          echo "Moving binaries..."
+          if [ -f "dist/$GAME_EXE-x86_64" ]; then
+            mv "dist/$GAME_EXE-x86_64" "dist/$GAME_FOLDER/$GAME_EXE.x86_64"
+            chmod +x "dist/$GAME_FOLDER/$GAME_EXE.x86_64"
+            echo "✓ x86_64 binary available"
+          else
+            echo "✗ x86_64 binary not available"
+          fi
 
-    - name: Upload multi-arch PortMaster artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ needs.build-arm64.outputs.game_exe }}-portmaster
-        path: ${{ needs.build-arm64.outputs.game_exe }}.zip
-        retention-days: 7
+          if [ -f "dist/$GAME_EXE-aarch64" ]; then
+            mv "dist/$GAME_EXE-aarch64" "dist/$GAME_FOLDER/$GAME_EXE.aarch64"
+            chmod +x "dist/$GAME_FOLDER/$GAME_EXE.aarch64"
+            echo "✓ aarch64 binary available"
+          else
+            echo "✗ aarch64 binary not available"
+          fi
+
+          # Verify final structure
+          echo "Final directory structure:"
+          find dist/ -type f -name "*" | sort
+
+          # Create final zip package
+          echo "Creating final zip package..."
+          cd dist
+          zip -r "../$GAME_FOLDER.zip" .
+
+          echo "Package created: $GAME_FOLDER.zip"
+
+      - name: Upload PortMaster package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.game_folder }}-portmaster
+          path: ${{ needs.build.outputs.game_folder }}.zip
+          retention-days: 7
+
+      - name: Show package summary
+        run: |
+          echo "=== Package Summary ==="
+          echo "Game: ${{ needs.build.outputs.game_name }}"
+          echo "Folder: ${{ needs.build.outputs.game_folder }}"
+          echo "Built architectures:"
+          if [ -f "dist/$GAME_FOLDER/$GAME_EXE.x86_64" ]; then
+            echo "  ✓ x86_64"
+          else
+            echo "  ✗ x86_64 (missing)"
+          fi
+          if [ -f "dist/$GAME_FOLDER/$GAME_EXE.aarch64" ]; then
+            echo "  ✓ aarch64"
+          else
+            echo "  ✗ aarch64 (missing)"
+          fi
+          echo "Package: ${{ needs.build.outputs.game_folder }}.zip"
+          echo "======================="
