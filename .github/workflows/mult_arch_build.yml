@@ -36,7 +36,7 @@ jobs:
             platform: linux/amd64
             docker_image: ubuntu:20.04
           - arch: aarch64
-            platform: linux/arm64
+            platform: linux/arm64/v8
             docker_image: ubuntu:20.04
 
     env:
@@ -66,8 +66,13 @@ jobs:
           echo "game_zip=$GAME_ZIP" >> $GITHUB_OUTPUT
           echo "game_start=$GAME_START" >> $GITHUB_OUTPUT
 
+      - name: Setup QEMU for cross-platform builds
+        uses: docker/setup-qemu-action@v3
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
 
       - name: Cache Docker dependencies
         uses: actions/cache@v4
@@ -77,66 +82,53 @@ jobs:
           restore-keys: |
             ${{ matrix.arch }}-deps-
 
-      - name: Pre-pull Docker image
+      - name: Build using Docker Buildx
         run: |
-          echo "📥 Pre-pulling Docker image for ${{ matrix.arch }}..."
-          docker pull --platform ${{ matrix.platform }} ${{ matrix.docker_image }}
-          echo "✅ Image ready for ${{ matrix.arch }}"
+          echo "🏗️ Building for ${{ matrix.arch }} on platform ${{ matrix.platform }}..."
 
-      - name: Build binary using Docker with caching
-        run: |
-          echo "🏗️ Starting ${{ matrix.arch }} build on platform ${{ matrix.platform }}..."
-          docker run --rm --platform ${{ matrix.platform }} \
-            -v ${{ github.workspace }}:/workspace \
-            -v /tmp/docker-cache-${{ matrix.arch }}:/cache \
-            -w /workspace \
-            ${{ matrix.docker_image }} \
-            /bin/bash -c "
-            # Set non-interactive frontend to avoid prompts
-            export DEBIAN_FRONTEND=noninteractive
+          # Create a Dockerfile for the build
+          cat > Dockerfile.build << EOF
+          FROM ${{ matrix.docker_image }}
 
-            # Install dependencies only if not cached
-            if [ ! -f /cache/deps-installed ]; then
-              echo '[${{ matrix.arch }}] 📦 Installing dependencies...'
-              apt-get update && \
+          # Set non-interactive frontend
+          ENV DEBIAN_FRONTEND=noninteractive
+
+          # Install dependencies
+          RUN apt-get update && \
               apt-get install -y --no-install-recommends \
                 build-essential cmake pkg-config wget tar \
                 libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
                 libsdl1.2-dev libsdl-image1.2-dev libsdl-mixer1.2-dev libsdl-ttf2.0-dev \
                 libpipewire-0.3-dev libfuse2 appstream make patchelf jq && \
               apt-get clean && \
-              rm -rf /var/lib/apt/lists/* && \
-              touch /cache/deps-installed
-              echo '[${{ matrix.arch }}] ✅ Dependencies installed and cached'
-            else
-              echo '[${{ matrix.arch }}] ♻️ Using cached dependencies'
-            fi
+              rm -rf /var/lib/apt/lists/*
 
-            # Build the binary
-            echo '[${{ matrix.arch }}] 🔨 Building binary...'
-            make
+          WORKDIR /workspace
+          COPY . .
 
-            # Create distribution package
-            echo '[${{ matrix.arch }}] 📦 Creating distribution package...'
-            mkdir -p dist
-            cp $GAME_EXE dist/$GAME_EXE-${{ matrix.arch }}
-            strip dist/$GAME_EXE-${{ matrix.arch }} || true
-            tar -czf ${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz -C dist $GAME_EXE-${{ matrix.arch }}
+          # Build the binary
+          RUN make
 
-            echo '[${{ matrix.arch }}] ✅ Build completed successfully'
-            ls -lh *.tar.gz
-          "
+          # Create distribution package
+          RUN mkdir -p dist && \
+              cp $GAME_EXE dist/$GAME_EXE && \
+              strip dist/$GAME_EXE || true
+          EOF
 
-      - name: Verify build artifact
+          # Build using Buildx
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            --output type=local,dest=./output-${{ matrix.arch }} \
+            -f Dockerfile.build .
+
+      - name: Create final artifact
         run: |
-          echo "🔍 Verifying build artifact for ${{ matrix.arch }}..."
-          if [ -f "${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz" ]; then
-            echo "✅ Artifact created: ${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz"
-            ls -lh "${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz"
-          else
-            echo "❌ Artifact not found!"
-            exit 1
-          fi
+          echo "📦 Creating final artifact for ${{ matrix.arch }}..."
+          cd output-${{ matrix.arch }}
+          mkdir -p dist
+          cp $GAME_EXE dist/$GAME_EXE-${{ matrix.arch }}
+          tar -czf ../${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz -C dist $GAME_EXE-${{ matrix.arch }}
+          ls -lh ../${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -169,11 +161,6 @@ jobs:
             echo "   - $(basename $f) ($SIZE)"
           done
 
-          X64_COUNT=$(find artifacts -name "*x86_64*" | wc -l)
-          ARM64_COUNT=$(find artifacts -name "*aarch64*" | wc -l)
-          echo "✅ x86_64 builds: $X64_COUNT"
-          echo "✅ aarch64 builds: $ARM64_COUNT"
-
       - name: Create PortMaster package
         run: |
           GAME_FOLDER="${{ needs.build.outputs.game_folder }}"
@@ -194,15 +181,11 @@ jobs:
           if [ -f "latest/$GAME_START" ]; then
             cp "latest/$GAME_START" "dist/"
             echo "✅ Copied start script: latest/$GAME_START"
-          else
-            echo "⚠️ Warning: Start script not found at latest/$GAME_START"
           fi
 
           if [ -d "latest/$GAME_FOLDER" ]; then
             cp -r "latest/$GAME_FOLDER/." "dist/$GAME_FOLDER/"
             echo "✅ Copied game folder: latest/$GAME_FOLDER"
-          else
-            echo "⚠️ Warning: Game folder not found at latest/$GAME_FOLDER"
           fi
 
           # Move binaries to correct location
@@ -211,16 +194,12 @@ jobs:
             mv "dist/$GAME_EXE-x86_64" "dist/$GAME_FOLDER/$GAME_EXE.x86_64"
             chmod +x "dist/$GAME_FOLDER/$GAME_EXE.x86_64"
             echo "✅ x86_64 binary available"
-          else
-            echo "❌ x86_64 binary not available"
           fi
 
           if [ -f "dist/$GAME_EXE-aarch64" ]; then
             mv "dist/$GAME_EXE-aarch64" "dist/$GAME_FOLDER/$GAME_EXE.aarch64"
             chmod +x "dist/$GAME_FOLDER/$GAME_EXE.aarch64"
             echo "✅ aarch64 binary available"
-          else
-            echo "❌ aarch64 binary not available"
           fi
 
           # Create final zip package
