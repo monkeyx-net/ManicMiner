@@ -1,48 +1,39 @@
-name: PortMaster Build Pipeline
+name: Build Multi-Architecture for PortMaster
 
 on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
-    inputs:
-      bash_file:
-        description: 'Enter Bash filename'
-        required: true
-        default: 'Port.sh'
-      exe_file:
-        description: 'Enter executable filename'
-        required: true
-        default: 'port'
-      folder_name:
-        description: 'Enter port folder name'
-        required: true
-        default: 'some_folder'
-      port_file:
-        description: 'Enter port.json file name'
-        required: true
-        default: 'port.json'
-      sdl_version:
-        description: 'Enter SDL Version required'
-        required: true
-        default: '2.32.0'
+
+env:
+  GO_VERSION: 1.23
+  SDL_VERSION: 2.30.2
+  GAME_EXE: "manicminer"
 
 jobs:
   build:
     name: Build ${{ matrix.arch }} Binary
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x86_64
+            runner: ubuntu-latest
             platform: linux/amd64
-            docker_image: ubuntu:20.04
-          - arch: aarch64
+          - arch: arm64
+            runner: ubuntu-22.04-arm
             platform: linux/arm64
-            docker_image: ubuntu:20.04
 
-    env:
-      SDL_VERSION: ${{ github.event.inputs.sdl_version }}
-      GAME_EXE: ${{ github.event.inputs.exe_file }}
-      PORT_FILE: ${{ github.event.inputs.port_file }}
+    outputs:
+      game_folder: ${{ steps.parse-json.outputs.game_folder }}
+      game_name: ${{ steps.parse-json.outputs.game_name }}
+      game_zip: ${{ steps.parse-json.outputs.game_zip }}
+      game_start: ${{ steps.parse-json.outputs.game_start }}
+      game_exe: ${{ steps.parse-json.outputs.game_exe }}
+      game_icon: ${{ steps.parse-json.outputs.game_icon }}
 
     steps:
       - name: Checkout source
@@ -53,7 +44,7 @@ jobs:
       - name: Parse port.json
         id: parse-json
         run: |
-          PORT_JSON_PATH="$PORT_FILE"
+          PORT_JSON_PATH="latest/scavenger/port.json"
           if [ ! -f "$PORT_JSON_PATH" ]; then
             echo "Error: $PORT_JSON_PATH not found" && exit 1
           fi
@@ -61,98 +52,60 @@ jobs:
           GAME_NAME=$(jq -r '.attr.title' "$PORT_JSON_PATH")
           GAME_ZIP=$(jq -r '.name' "$PORT_JSON_PATH")
           GAME_START=$(jq -r '.items[0]' "$PORT_JSON_PATH")
+          GAME_EXE="$GAME_EXE"
+          GAME_ICON="latest/$GAME_FOLDER/cover.png"
           echo "game_folder=$GAME_FOLDER" >> $GITHUB_OUTPUT
           echo "game_name=$GAME_NAME" >> $GITHUB_OUTPUT
           echo "game_zip=$GAME_ZIP" >> $GITHUB_OUTPUT
           echo "game_start=$GAME_START" >> $GITHUB_OUTPUT
+          echo "game_exe=$GAME_EXE" >> $GITHUB_OUTPUT
+          echo "game_icon=$GAME_ICON" >> $GITHUB_OUTPUT
 
-      - name: Setup QEMU for cross-platform builds
-        uses: docker/setup-qemu-action@v3
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
-      - name: Build using Docker Buildx with simplified dependencies
+      - name: Build using native runner
+        if: matrix.arch != 'arm64'  # Use native build for x86_64
         run: |
-          echo "🏗️ Building for ${{ matrix.arch }} on platform ${{ matrix.platform }}..."
-
-          # Create a Dockerfile with simplified dependencies and better error handling
-          cat > Dockerfile.build << EOF
-          FROM ${{ matrix.docker_image }}
-
-          # Set non-interactive frontend and fix sources for old Ubuntu
-          ENV DEBIAN_FRONTEND=noninteractive
-          RUN sed -i 's/archive.ubuntu.com/old-releases.ubuntu.com/g' /etc/apt/sources.list && \
-              sed -i 's/security.ubuntu.com/old-releases.ubuntu.com/g' /etc/apt/sources.list
-
-          # Update and install basic build tools first
-          RUN apt-get update || true && \
-              apt-get install -y --no-install-recommends \
-                ca-certificates && \
-              apt-get update
-
-          # Install essential build tools
-          RUN apt-get install -y --no-install-recommends \
-                build-essential \
-                cmake \
-                pkg-config \
-                wget \
-                tar \
-                make \
-                patchelf \
-                jq
-
-          # Install SDL2 libraries (skip if they fail)
-          RUN apt-get install -y --no-install-recommends \
-                libsdl2-dev \
-                libsdl2-image-dev \
-                libsdl2-mixer-dev \
-                libsdl2-ttf-dev || echo "SDL2 libraries not available, continuing..."
-
-          # Install SDL1.2 libraries (skip if they fail)
-          RUN apt-get install -y --no-install-recommends \
-                libsdl1.2-dev \
-                libsdl-image1.2-dev \
-                libsdl-mixer1.2-dev \
-                libsdl-ttf2.0-dev || echo "SDL1.2 libraries not available, continuing..."
-
-          # Install other dependencies (skip if they fail)
-          RUN apt-get install -y --no-install-recommends \
-                libpipewire-0.3-dev \
-                libfuse2 \
-                appstream || echo "Some dependencies not available, continuing..."
-
-          RUN apt-get clean && \
-              rm -rf /var/lib/apt/lists/*
-
-          WORKDIR /workspace
-          COPY . .
-
-          # Build the binary
-          RUN make
-
-          # Create distribution package
-          RUN mkdir -p dist && \
-              cp $GAME_EXE dist/$GAME_EXE && \
-              strip dist/$GAME_EXE || true
-          EOF
-
-          # Build using Buildx
-          docker buildx build \
-            --platform ${{ matrix.platform }} \
-            --output type=local,dest=./output-${{ matrix.arch }} \
-            -f Dockerfile.build .
-
-      - name: Create final artifact
-        run: |
-          echo "📦 Creating final artifact for ${{ matrix.arch }}..."
-          cd output-${{ matrix.arch }}
+          # Your existing native build steps for x86_64
+          make
           mkdir -p dist
-          cp $GAME_EXE dist/$GAME_EXE-${{ matrix.arch }}
-          tar -czf ../${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz -C dist $GAME_EXE-${{ matrix.arch }}
-          ls -lh ../${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz
+          cp $GAME_EXE dist/${GAME_EXE}-${{ matrix.arch }}
+          strip dist/${GAME_EXE}-${{ matrix.arch }} || true
+          tar -czf ${GAME_FOLDER}-linux-${{ matrix.arch }}.tar.gz -C dist ${GAME_EXE}-${{ matrix.arch }}
+
+      - name: Build in ARM64 container
+        if: matrix.arch == 'arm64'  # Use container build for ARM64
+        run: |
+          game="$GAME_EXE"
+          folder="${{ steps.parse-json.outputs.game_folder }}"
+          docker run --rm \
+            --platform linux/arm64 \
+            -v $PWD:/workspace \
+            -w /workspace \
+            -e DEBIAN_FRONTEND=noninteractive \
+            arm64v8/ubuntu:20.04 \
+            /bin/bash -c "
+            apt-get update
+            apt-get install -y build-essential make cmake file wget tar \
+              pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+              libxi-dev libxinerama-dev libxxf86vm-dev libwayland-dev libxkbcommon-dev \
+              libasound2-dev libpulse-dev libaudio-dev libjack-dev libsamplerate0-dev \
+              libgbm-dev libegl1-mesa-dev libgles2-mesa-dev libgl1-mesa-dev libglu1-mesa-dev
+
+            wget -q -O sdl.tar.gz https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.2.tar.gz
+            tar -xzf sdl.tar.gz
+            mv SDL-release-2.30.2 sdl-source
+
+            cd sdl-source
+            mkdir -p build && cd build
+            cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
+            make -j\$(nproc)
+            make install
+            cd ../..
+
+            make
+            mkdir -p dist
+            cp $game dist/${game}-aarch64
+            strip dist/${game}-aarch64
+            tar -czf ${folder}-linux-arm64.tar.gz -C dist ."
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -165,73 +118,47 @@ jobs:
     name: Package PortMaster
     runs-on: ubuntu-latest
     needs: build
-    if: always()
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (for latest/ folder and other files)
         uses: actions/checkout@v4
 
-      - name: Download binary artifacts
+      - name: Download all binary artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          pattern: ${{ needs.build.outputs.game_folder }}-linux-*
+          pattern: scavenger-linux-*
           merge-multiple: true
 
-      - name: Check available architectures
+      - name: Extract binaries to correct locations
         run: |
-          echo "📊 Available artifacts:"
-          find artifacts -name "*.tar.gz" | while read f; do
-            SIZE=$(du -h "$f" | cut -f1)
-            echo "   - $(basename $f) ($SIZE)"
-          done
-
-      - name: Create PortMaster package
-        run: |
+          GAME_EXE="$GAME_EXE"
           GAME_FOLDER="${{ needs.build.outputs.game_folder }}"
           GAME_START="${{ needs.build.outputs.game_start }}"
-          GAME_EXE="${{ github.event.inputs.exe_file }}"
-
-          echo "📦 Creating package for: $GAME_FOLDER"
-
-          # Create directory structure
-          mkdir -p dist/$GAME_FOLDER
-
-          # Extract binaries from artifacts
-          echo "📤 Extracting binaries..."
-          find artifacts -name "*.tar.gz" -exec tar -xzf {} -C dist/ \;
-
-          # Copy game files from latest directory
-          echo "📄 Copying game files..."
-          if [ -f "latest/$GAME_START" ]; then
-            cp "latest/$GAME_START" "dist/"
-            echo "✅ Copied start script: latest/$GAME_START"
-          fi
-
-          if [ -d "latest/$GAME_FOLDER" ]; then
-            cp -r "latest/$GAME_FOLDER/." "dist/$GAME_FOLDER/"
-            echo "✅ Copied game folder: latest/$GAME_FOLDER"
-          fi
-
-          # Move binaries to correct location
-          echo "🔧 Moving binaries..."
-          if [ -f "dist/$GAME_EXE-x86_64" ]; then
-            mv "dist/$GAME_EXE-x86_64" "dist/$GAME_FOLDER/$GAME_EXE.x86_64"
-            chmod +x "dist/$GAME_FOLDER/$GAME_EXE.x86_64"
-            echo "✅ x86_64 binary available"
-          fi
-
-          if [ -f "dist/$GAME_EXE-aarch64" ]; then
-            mv "dist/$GAME_EXE-aarch64" "dist/$GAME_FOLDER/$GAME_EXE.aarch64"
-            chmod +x "dist/$GAME_FOLDER/$GAME_EXE.aarch64"
-            echo "✅ aarch64 binary available"
-          fi
-
-          # Create final zip package
-          echo "🎯 Creating final zip package..."
+          echo "Creating PortMaster package"
+          mkdir -p dist/${GAME_FOLDER}/conf
+          echo "Artifacts structure:"
+          find artifacts -type f -name "*.tar.gz" | while read f; do
+            echo "Extracting $f..."
+            tar -xzf "$f" -C dist/
+          done
+          echo "Contents of dist/:"
+          ls -la artifacts/
+          ls -la dist/
+          ls -la latest/
+          echo "Remove previous aarch64 and x86_64 binaries"
+          rm -f "latest/${GAME_FOLDER}/${GAME_EXE}.aarch64" "latest/${GAME_FOLDER}/${GAME_EXE}.x86_64"
+          echo "Copy ${GAME_START} from latest to dist folder"
+          cp "latest/$GAME_START" "dist/"
+          echo "Copy meta information and supporting files/folders"
+          cp -r "latest/${GAME_FOLDER}/." "dist/${GAME_FOLDER}/"
+          echo "Copy latest game binaries"
+          mv dist/${GAME_EXE}-x86_64 dist/${GAME_FOLDER}/${GAME_EXE}.x86_64
+          mv dist/${GAME_EXE}-aarch64 dist/${GAME_FOLDER}/${GAME_EXE}.aarch64
+          chmod +x dist/${GAME_FOLDER}/${GAME_EXE}.*
+          echo "Contents of dist/${GAME_FOLDER}/:"
+          ls -la dist/${GAME_FOLDER}
           cd dist
-          zip -r "../$GAME_FOLDER.zip" .
-
-          echo "✅ Package created: $GAME_FOLDER.zip"
+          zip -r "../${GAME_FOLDER}.zip" .
 
       - name: Upload PortMaster package
         uses: actions/upload-artifact@v4
