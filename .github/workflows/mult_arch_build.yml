@@ -29,7 +29,7 @@ jobs:
     name: Build ${{ matrix.arch }} Binary
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false  # This allows jobs to continue even if one fails
+      fail-fast: false
       matrix:
         include:
           - arch: x86_64
@@ -77,9 +77,15 @@ jobs:
           restore-keys: |
             ${{ matrix.arch }}-deps-
 
+      - name: Pre-pull Docker image
+        run: |
+          echo "📥 Pre-pulling Docker image for ${{ matrix.arch }}..."
+          docker pull --platform ${{ matrix.platform }} ${{ matrix.docker_image }}
+          echo "✅ Image ready for ${{ matrix.arch }}"
+
       - name: Build binary using Docker with caching
         run: |
-          echo "Starting ${{ matrix.arch }} build on platform ${{ matrix.platform }}"
+          echo "🏗️ Starting ${{ matrix.arch }} build on platform ${{ matrix.platform }}..."
           docker run --rm --platform ${{ matrix.platform }} \
             -v ${{ github.workspace }}:/workspace \
             -v /tmp/docker-cache-${{ matrix.arch }}:/cache \
@@ -91,7 +97,7 @@ jobs:
 
             # Install dependencies only if not cached
             if [ ! -f /cache/deps-installed ]; then
-              echo '[${{ matrix.arch }}] Installing dependencies...'
+              echo '[${{ matrix.arch }}] 📦 Installing dependencies...'
               apt-get update && \
               apt-get install -y --no-install-recommends \
                 build-essential cmake pkg-config wget tar \
@@ -101,24 +107,36 @@ jobs:
               apt-get clean && \
               rm -rf /var/lib/apt/lists/* && \
               touch /cache/deps-installed
-              echo '[${{ matrix.arch }}] Dependencies installed and cached'
+              echo '[${{ matrix.arch }}] ✅ Dependencies installed and cached'
             else
-              echo '[${{ matrix.arch }}] Using cached dependencies'
+              echo '[${{ matrix.arch }}] ♻️ Using cached dependencies'
             fi
 
             # Build the binary
-            echo '[${{ matrix.arch }}] Building binary...'
+            echo '[${{ matrix.arch }}] 🔨 Building binary...'
             make
 
             # Create distribution package
-            echo '[${{ matrix.arch }}] Creating distribution package...'
+            echo '[${{ matrix.arch }}] 📦 Creating distribution package...'
             mkdir -p dist
             cp $GAME_EXE dist/$GAME_EXE-${{ matrix.arch }}
             strip dist/$GAME_EXE-${{ matrix.arch }} || true
             tar -czf ${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz -C dist $GAME_EXE-${{ matrix.arch }}
 
-            echo '[${{ matrix.arch }}] Build completed successfully'
+            echo '[${{ matrix.arch }}] ✅ Build completed successfully'
+            ls -lh *.tar.gz
           "
+
+      - name: Verify build artifact
+        run: |
+          echo "🔍 Verifying build artifact for ${{ matrix.arch }}..."
+          if [ -f "${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz" ]; then
+            echo "✅ Artifact created: ${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz"
+            ls -lh "${{ steps.parse-json.outputs.game_folder }}-linux-${{ matrix.arch }}.tar.gz"
+          else
+            echo "❌ Artifact not found!"
+            exit 1
+          fi
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -130,8 +148,8 @@ jobs:
   package:
     name: Package PortMaster
     runs-on: ubuntu-latest
-    needs: build  # This will wait for ALL matrix jobs to complete
-    if: always()  # Run even if some builds fail, to package what succeeded
+    needs: build
+    if: always()
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -145,16 +163,16 @@ jobs:
 
       - name: Check available architectures
         run: |
-          echo "Available artifacts:"
+          echo "📊 Available artifacts:"
           find artifacts -name "*.tar.gz" | while read f; do
-            echo " - $f"
+            SIZE=$(du -h "$f" | cut -f1)
+            echo "   - $(basename $f) ($SIZE)"
           done
 
-          # Count available architectures
           X64_COUNT=$(find artifacts -name "*x86_64*" | wc -l)
           ARM64_COUNT=$(find artifacts -name "*aarch64*" | wc -l)
-          echo "x86_64 builds: $X64_COUNT"
-          echo "aarch64 builds: $ARM64_COUNT"
+          echo "✅ x86_64 builds: $X64_COUNT"
+          echo "✅ aarch64 builds: $ARM64_COUNT"
 
       - name: Create PortMaster package
         run: |
@@ -162,61 +180,55 @@ jobs:
           GAME_START="${{ needs.build.outputs.game_start }}"
           GAME_EXE="${{ github.event.inputs.exe_file }}"
 
-          echo "Creating package for: $GAME_FOLDER"
-          echo "Game executable: $GAME_EXE"
-          echo "Start script: $GAME_START"
+          echo "📦 Creating package for: $GAME_FOLDER"
 
           # Create directory structure
           mkdir -p dist/$GAME_FOLDER
 
           # Extract binaries from artifacts
-          echo "Extracting binaries..."
+          echo "📤 Extracting binaries..."
           find artifacts -name "*.tar.gz" -exec tar -xzf {} -C dist/ \;
 
           # Copy game files from latest directory
-          echo "Copying game files..."
+          echo "📄 Copying game files..."
           if [ -f "latest/$GAME_START" ]; then
             cp "latest/$GAME_START" "dist/"
-            echo "Copied start script: latest/$GAME_START"
+            echo "✅ Copied start script: latest/$GAME_START"
           else
-            echo "Warning: Start script not found at latest/$GAME_START"
+            echo "⚠️ Warning: Start script not found at latest/$GAME_START"
           fi
 
           if [ -d "latest/$GAME_FOLDER" ]; then
             cp -r "latest/$GAME_FOLDER/." "dist/$GAME_FOLDER/"
-            echo "Copied game folder: latest/$GAME_FOLDER"
+            echo "✅ Copied game folder: latest/$GAME_FOLDER"
           else
-            echo "Warning: Game folder not found at latest/$GAME_FOLDER"
+            echo "⚠️ Warning: Game folder not found at latest/$GAME_FOLDER"
           fi
 
-          # Move binaries to correct location (only if they exist)
-          echo "Moving binaries..."
+          # Move binaries to correct location
+          echo "🔧 Moving binaries..."
           if [ -f "dist/$GAME_EXE-x86_64" ]; then
             mv "dist/$GAME_EXE-x86_64" "dist/$GAME_FOLDER/$GAME_EXE.x86_64"
             chmod +x "dist/$GAME_FOLDER/$GAME_EXE.x86_64"
-            echo "✓ x86_64 binary available"
+            echo "✅ x86_64 binary available"
           else
-            echo "✗ x86_64 binary not available"
+            echo "❌ x86_64 binary not available"
           fi
 
           if [ -f "dist/$GAME_EXE-aarch64" ]; then
             mv "dist/$GAME_EXE-aarch64" "dist/$GAME_FOLDER/$GAME_EXE.aarch64"
             chmod +x "dist/$GAME_FOLDER/$GAME_EXE.aarch64"
-            echo "✓ aarch64 binary available"
+            echo "✅ aarch64 binary available"
           else
-            echo "✗ aarch64 binary not available"
+            echo "❌ aarch64 binary not available"
           fi
 
-          # Verify final structure
-          echo "Final directory structure:"
-          find dist/ -type f -name "*" | sort
-
           # Create final zip package
-          echo "Creating final zip package..."
+          echo "🎯 Creating final zip package..."
           cd dist
           zip -r "../$GAME_FOLDER.zip" .
 
-          echo "Package created: $GAME_FOLDER.zip"
+          echo "✅ Package created: $GAME_FOLDER.zip"
 
       - name: Upload PortMaster package
         uses: actions/upload-artifact@v4
@@ -224,22 +236,3 @@ jobs:
           name: ${{ needs.build.outputs.game_folder }}-portmaster
           path: ${{ needs.build.outputs.game_folder }}.zip
           retention-days: 7
-
-      - name: Show package summary
-        run: |
-          echo "=== Package Summary ==="
-          echo "Game: ${{ needs.build.outputs.game_name }}"
-          echo "Folder: ${{ needs.build.outputs.game_folder }}"
-          echo "Built architectures:"
-          if [ -f "dist/$GAME_FOLDER/$GAME_EXE.x86_64" ]; then
-            echo "  ✓ x86_64"
-          else
-            echo "  ✗ x86_64 (missing)"
-          fi
-          if [ -f "dist/$GAME_FOLDER/$GAME_EXE.aarch64" ]; then
-            echo "  ✓ aarch64"
-          else
-            echo "  ✗ aarch64 (missing)"
-          fi
-          echo "Package: ${{ needs.build.outputs.game_folder }}.zip"
-          echo "======================="
