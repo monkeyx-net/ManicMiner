@@ -114,9 +114,6 @@ jobs:
             fi
             echo "GOROOT=$(go env GOROOT)" >> $GITHUB_ENV
             echo "$(go env GOROOT)/bin" >> $GITHUB_PATH
-
-      - name: Install Kitware CMake and SDL2
-        run: |
             apt install -y wget gnupg
             wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg
             echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/kitware.list
@@ -138,6 +135,9 @@ jobs:
             strip 'dist/${{ inputs.exe_file }}-${{ matrix.arch }}'
             tar -czf '${{ inputs.folder_name }}-linux-${{ matrix.arch }}.tar.gz' -C dist ."
             echo 'Build ${{ inputs.exe_file }} completed successfully'
+
+            "
+
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
