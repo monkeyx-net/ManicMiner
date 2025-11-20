@@ -1,4 +1,4 @@
-name: Build Multi-Architecture for PortMaster
+name: Build Multi-Architecture for PortMaster v0.01a
 
 on:
   workflow_dispatch:
@@ -122,8 +122,7 @@ jobs:
             echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/kitware.list
             apt install -y --no-install-recommends cmake
             rm -rf /var/lib/apt/lists/*
-
-	    echo 'SDL Build start'
+            echo 'SDL Build start'
             cd sdl-source
             mkdir -p build && cd build
             cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
@@ -131,7 +130,6 @@ jobs:
             make install
             cd ../..
             echo 'SDL Build completed successfully'
-
             echo 'Build Port'
             make
 
