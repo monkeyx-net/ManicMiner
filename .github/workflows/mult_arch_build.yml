@@ -15,7 +15,7 @@ env:
 jobs:
   build:
     name: Build ${{ matrix.arch }} Binary
-    runs-on: ubuntu-latest  # Always use the same runner
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +60,10 @@ jobs:
           echo "game_start=$GAME_START" >> $GITHUB_OUTPUT
           echo "game_exe=$GAME_EXE" >> $GITHUB_OUTPUT
           echo "game_icon=$GAME_ICON" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
 
       - name: Build in container (${{ matrix.arch }})
         run: |
