@@ -10,22 +10,22 @@ on:
 env:
   GO_VERSION: 1.23
   SDL_VERSION: 2.30.2
-  GAME_EXE: "manicminer"
+  GAME_EXE: "sdlscav"
 
 jobs:
   build:
     name: Build ${{ matrix.arch }} Binary
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest  # Always use the same runner
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x86_64
-            runner: ubuntu-latest
             platform: linux/amd64
+            image: ubuntu:20.04
           - arch: arm64
-            runner: ubuntu-22.04-arm
             platform: linux/arm64
+            image: arm64v8/ubuntu:20.04
 
     outputs:
       game_folder: ${{ steps.parse-json.outputs.game_folder }}
@@ -44,7 +44,7 @@ jobs:
       - name: Parse port.json
         id: parse-json
         run: |
-          PORT_JSON_PATH="latest/manicminer/port.json"
+          PORT_JSON_PATH="latest/scavenger/port.json"
           if [ ! -f "$PORT_JSON_PATH" ]; then
             echo "Error: $PORT_JSON_PATH not found" && exit 1
           fi
@@ -61,27 +61,16 @@ jobs:
           echo "game_exe=$GAME_EXE" >> $GITHUB_OUTPUT
           echo "game_icon=$GAME_ICON" >> $GITHUB_OUTPUT
 
-      - name: Build using native runner
-        if: matrix.arch != 'arm64'  # Use native build for x86_64
-        run: |
-          # Your existing native build steps for x86_64
-          make
-          mkdir -p dist
-          cp $GAME_EXE dist/${GAME_EXE}-${{ matrix.arch }}
-          strip dist/${GAME_EXE}-${{ matrix.arch }} || true
-          tar -czf ${GAME_FOLDER}-linux-${{ matrix.arch }}.tar.gz -C dist ${GAME_EXE}-${{ matrix.arch }}
-
-      - name: Build in ARM64 container
-        if: matrix.arch == 'arm64'  # Use container build for ARM64
+      - name: Build in container (${{ matrix.arch }})
         run: |
           game="$GAME_EXE"
           folder="${{ steps.parse-json.outputs.game_folder }}"
           docker run --rm \
-            --platform linux/arm64 \
+            --platform ${{ matrix.platform }} \
             -v $PWD:/workspace \
             -w /workspace \
             -e DEBIAN_FRONTEND=noninteractive \
-            arm64v8/ubuntu:20.04 \
+            ${{ matrix.image }} \
             /bin/bash -c "
             apt-get update
             apt-get install -y build-essential make cmake file wget tar \
@@ -103,9 +92,9 @@ jobs:
 
             make
             mkdir -p dist
-            cp $game dist/${game}-aarch64
-            strip dist/${game}-aarch64
-            tar -czf ${folder}-linux-arm64.tar.gz -C dist ."
+            cp $game dist/${game}-${{ matrix.arch }}
+            strip dist/${game}-${{ matrix.arch }}
+            tar -czf ${folder}-linux-${{ matrix.arch }}.tar.gz -C dist ."
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -126,7 +115,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          pattern: manicminer-linux-*
+          pattern: scavenger-linux-*
           merge-multiple: true
 
       - name: Extract binaries to correct locations
@@ -153,7 +142,7 @@ jobs:
           cp -r "latest/${GAME_FOLDER}/." "dist/${GAME_FOLDER}/"
           echo "Copy latest game binaries"
           mv dist/${GAME_EXE}-x86_64 dist/${GAME_FOLDER}/${GAME_EXE}.x86_64
-          mv dist/${GAME_EXE}-aarch64 dist/${GAME_FOLDER}/${GAME_EXE}.aarch64
+          mv dist/${GAME_EXE}-arm64 dist/${GAME_FOLDER}/${GAME_EXE}.aarch64
           chmod +x dist/${GAME_FOLDER}/${GAME_EXE}.*
           echo "Contents of dist/${GAME_FOLDER}/:"
           ls -la dist/${GAME_FOLDER}
