@@ -15,16 +15,16 @@ env:
 jobs:
   build:
     name: Build ${{ matrix.arch }} Binary
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x86_64
-            platform: linux/amd64
+            runner: ubuntu-latest
             image: ubuntu:20.04
           - arch: arm64
-            platform: linux/arm64
+            runner: ubuntu-22.04-arm
             image: arm64v8/ubuntu:20.04
 
     outputs:
@@ -61,16 +61,11 @@ jobs:
           echo "game_exe=$GAME_EXE" >> $GITHUB_OUTPUT
           echo "game_icon=$GAME_ICON" >> $GITHUB_OUTPUT
 
-      - name: Set up QEMU
-        if: matrix.arch == 'arm64'
-        uses: docker/setup-qemu-action@v3
-
       - name: Build in container (${{ matrix.arch }})
         run: |
           game="$GAME_EXE"
           folder="${{ steps.parse-json.outputs.game_folder }}"
           docker run --rm \
-            --platform ${{ matrix.platform }} \
             -v $PWD:/workspace \
             -w /workspace \
             -e DEBIAN_FRONTEND=noninteractive \
