@@ -27,7 +27,14 @@ CPPFLAGS =
 # Platform-specific configuration
 ifneq ($(CROSS_COMPILE),)
     # Cross-compilation mode (set by cross-* targets)
-    ifeq ($(CROSS_COMPILE), windows)
+    ifeq ($(CROSS_COMPILE), emscripten)
+        CC = emcc
+        TARGET = $(PROJECT).html
+        OBJ_DIR = emscripten
+        CFLAGS = -std=c99 -O2 -Wall -Wextra -MMD -MP -s USE_SDL=2
+        LDFLAGS = -s USE_SDL=2 -s ALLOW_MEMORY_GROWTH=1 -s ASSERTIONS=1 -s ASYNCIFY=1
+        CPPFLAGS = -DBUILD=\"v$(VERSION_MAJOR).$(VERSION_MINOR).$(YEAR)\" -DPROJECT_NAME=\"$(PROJECT)\" -DPLATFORM_Emscripten=1
+    else ifeq ($(CROSS_COMPILE), windows)
         CC = x86_64-w64-mingw32-gcc
         TARGET = $(PROJECT).exe
         OBJ_DIR = windows-cross
@@ -200,6 +207,22 @@ cross-linux-arm64:
 	fi
 	+$(MAKE) CROSS_COMPILE=linux-arm64
 
+# Emscripten/WebAssembly build
+emscripten:
+	@echo "Building for WebAssembly with Emscripten..."
+	@echo "Note: Ensure Emscripten SDK is installed and activated"
+	@echo "Install: https://emscripten.org/docs/getting_started/downloads.html"
+	@if ! which emcc >/dev/null 2>&1; then \
+		echo "Error: Emscripten compiler (emcc) not found"; \
+		echo "Activate Emscripten: source /path/to/emsdk/emsdk_env.sh"; \
+		exit 1; \
+	fi
+	+$(MAKE) CROSS_COMPILE=emscripten
+	@echo "WebAssembly build complete!"
+	@echo "Output files: $(PROJECT).html $(PROJECT).js $(PROJECT).wasm"
+	@echo "To test: emrun $(PROJECT).html"
+	@echo "Or serve with: python3 -m http.server 8000"
+
 # Native Windows build (if actually running on Windows)
 windows-native:
 	$(MAKE) OBJ_DIR=windows-native
@@ -280,6 +303,11 @@ else ifeq ($(UNAME_S), Linux)
 	else \
 		echo "✗ ARM64 cross-compiler not found. Install with: sudo apt-get install gcc-aarch64-linux-gnu"; \
 	fi
+	@if which emcc >/dev/null; then \
+		echo "✓ Emscripten compiler found"; \
+	else \
+		echo "✗ Emscripten not found. Install from: https://emscripten.org/"; \
+	fi
 else ifneq (,$(findstring MINGW,$(UNAME_S))$(findstring MSYS,$(UNAME_S)))
 	@echo "Windows environment detected"
 	@if which sdl2-config >/dev/null; then \
@@ -294,7 +322,7 @@ endif
 
 # Phony targets
 .PHONY: all debug release install uninstall clean distclean info \
-        macos-universal cross-windows cross-linux-arm64 windows-native check-deps
+        macos-universal cross-windows cross-linux-arm64 emscripten windows-native check-deps
 
 # Help target
 help:
@@ -315,6 +343,7 @@ help:
 	@echo "  macos-universal   - Create universal binary (macOS only)"
 	@echo "  cross-windows     - Cross-compile for Windows"
 	@echo "  cross-linux-arm64 - Cross-compile for Linux ARM64"
+	@echo "  emscripten        - Build for WebAssembly (requires Emscripten SDK)"
 	@echo "  windows-native    - Native Windows build (if on Windows)"
 	@echo ""
 	@echo "Current platform: $(UNAME_S) $(UNAME_M)"

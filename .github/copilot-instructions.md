@@ -46,9 +46,12 @@ make debug              # Debug build with -O0 -DDEBUG
 make release            # Optimized -O2 build
 make cross-windows      # Cross-compile for Windows (needs MinGW)
 make cross-linux-arm64  # Cross-compile for ARM64
+make emscripten         # Build for WebAssembly (needs Emscripten SDK)
 ```
 
 Build outputs to `build/<platform>/` with separate object directories per target. Dependencies auto-generated via `-MMD -MP`.
+
+**WebAssembly/Emscripten**: Requires Emscripten SDK (https://emscripten.org/). Generates `.html`, `.js`, and `.wasm` files. Test with `emrun manicminer.html` or serve via HTTP server. Uses SDL2 port with flags `-s USE_SDL=2 -s ALLOW_MEMORY_GROWTH=1`.
 
 ## Key Conventions
 
@@ -78,6 +81,7 @@ Build outputs to `build/<platform>/` with separate object directories per target
 - **SDL2**: Only external dependency. Platform-specific paths in Makefile.
 - **Math library**: `-lm` for audio frequency calculations.
 - **Platform libs**: MinGW requires additional Windows libs (user32, gdi32, etc.) - see Makefile line 35-37.
+- **Emscripten**: Optional for WebAssembly builds. Uses SDL2 port (`-s USE_SDL=2`). Requires emsdk activation.
 
 ## File Organization
 
