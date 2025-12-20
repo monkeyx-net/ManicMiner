@@ -222,6 +222,11 @@
                 <button id="exportBtn">Export to C Code</button>
                 <button id="copyBtn" style="display:none;">Copy to Clipboard</button>
             </div>
+            
+            <div class="control-group">
+                <button id="loadBtn">Load from File</button>
+                <button id="saveBtn">Save to File</button>
+            </div>
         </div>
         
         <div class="editor-area">
@@ -269,356 +274,311 @@
         </div>
     </div>
 
+    <!-- Load external level data -->
+    <script src="leveldata.js"></script>
+    
     <script>
-// Tile definitions
-const TILE_TYPES = [
-    { id: 0, name: 'SPACE', color: '#000000', desc: 'Empty space' },
-    { id: 1, name: 'CONVEY', color: '#aa00aa', desc: 'Conveyor belt' },
-    { id: 2, name: 'SOLID', color: '#00aaaa', desc: 'Solid wall' },
-    { id: 3, name: 'FLOOR', color: '#00aa00', desc: 'Platform' },
-    { id: 4, name: 'FLOOR2', color: '#aaaa00', desc: 'Alt platform' },
-    { id: 5, name: 'COLLAPS', color: '#aa0000', desc: 'Collapse' },
-    { id: 6, name: 'ITEM', color: '#ffff00', desc: 'Collectible' },
-    { id: 7, name: 'HARM', color: '#ff0000', desc: 'Hazard' },
-    { id: 8, name: 'ENEMY', color: '#ff00ff', desc: 'Enemy' },
-    { id: 9, name: 'SPECIAL', color: '#ffffff', desc: 'Special' }
-];
+        // Tile definitions
+        const TILE_TYPES = [
+            { id: 0, name: 'SPACE', color: '#000000', desc: 'Empty space' },
+            { id: 1, name: 'CONVEY', color: '#aa00aa', desc: 'Conveyor belt' },
+            { id: 2, name: 'SOLID', color: '#00aaaa', desc: 'Solid wall' },
+            { id: 3, name: 'FLOOR', color: '#00aa00', desc: 'Platform' },
+            { id: 4, name: 'FLOOR2', color: '#aaaa00', desc: 'Alt platform' },
+            { id: 5, name: 'COLLAPS', color: '#aa0000', desc: 'Collapse' },
+            { id: 6, name: 'ITEM', color: '#ffff00', desc: 'Collectible' },
+            { id: 7, name: 'HARM', color: '#ff0000', desc: 'Hazard' },
+            { id: 8, name: 'ENEMY', color: '#ff00ff', desc: 'Enemy' },
+            { id: 9, name: 'SPECIAL', color: '#ffffff', desc: 'Special' }
+        ];
 
-// Sample level data for testing (visible structure)
-const sampleLevels = [
-    // Level 1 - Central Cavern
-    [
-        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2
-    ],
-    // Level 2 - The Cold Room
-    [
-        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-        2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2
-    ]
-    // Remaining levels will be empty by default
-];
+        // Initialize levelData - will be populated after DOM loads
+        let levelData = null;
+        let currentLevel = 0; // Index of current level (0-19)
+        let selectedTile = 0;
+        let brushSize = 1;
+        let undoStack = [];
 
-// Initialize levelData with sample data
-let levelData;
-if (typeof MANIC_MINER_LEVELS !== 'undefined') {
-    // Use external data if available
-    levelData = [...MANIC_MINER_LEVELS];
-    console.log(`Loaded ${levelData.length} levels from external file`);
-} else {
-    // Use sample data
-    levelData = [...sampleLevels];
-    console.log('Using sample level data');
-}
+        // Canvas setup
+        const canvas = document.getElementById('levelCanvas');
+        const ctx = canvas.getContext('2d');
+        const COLS = 32;
+        const ROWS = 16;
+        const TILE_SIZE = canvas.width / COLS;
 
-// Make sure we have exactly 20 levels
-while (levelData.length < 20) {
-    levelData.push(Array(512).fill(0));
-}
-if (levelData.length > 20) {
-    levelData = levelData.slice(0, 20);
-}
+        let isDrawing = false;
 
-let currentLevel = 0; // Index of current level (0-19)
-let selectedTile = 0;
-let brushSize = 1;
-let undoStack = [];
-
-// Canvas setup
-const canvas = document.getElementById('levelCanvas');
-const ctx = canvas.getContext('2d');
-const COLS = 32;
-const ROWS = 16;
-const TILE_SIZE = canvas.width / COLS;
-
-let isDrawing = false;
-
-// Initialize palette
-function initPalette() {
-    const grid = document.getElementById('paletteGrid');
-    grid.innerHTML = ''; // Clear existing
-    TILE_TYPES.forEach(tile => {
-        const div = document.createElement('div');
-        div.className = 'palette-tile';
-        div.style.backgroundColor = tile.color;
-        div.innerHTML = `${tile.id}<br>${tile.name}`;
-        div.onclick = () => selectTile(tile.id);
-        div.dataset.tileId = tile.id;
-        grid.appendChild(div);
-    });
-    selectTile(0);
-}
-
-// Select tile
-function selectTile(tileId) {
-    selectedTile = tileId;
-    document.querySelectorAll('.palette-tile').forEach(el => {
-        el.classList.remove('selected');
-    });
-    const selectedElement = document.querySelector(`[data-tile-id="${tileId}"]`);
-    if (selectedElement) {
-        selectedElement.classList.add('selected');
-    }
-    
-    const tile = TILE_TYPES[tileId];
-    document.getElementById('tileInfo').innerHTML = `
-        <strong>Tile ${tile.id}:</strong> ${tile.name}<br>
-        ${tile.desc}
-    `;
-}
-
-// Draw level
-function drawLevel() {
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    const data = levelData[currentLevel];
-    for (let i = 0; i < 512; i++) {
-        const x = (i % COLS) * TILE_SIZE;
-        const y = Math.floor(i / COLS) * TILE_SIZE;
-        const tileId = data[i];
-        
-        if (tileId >= 0 && tileId < TILE_TYPES.length) {
-            ctx.fillStyle = TILE_TYPES[tileId].color;
-            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-        }
-        
-        // Grid lines
-        ctx.strokeStyle = '#333333';
-        ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
-    }
-}
-
-// Get tile index from mouse position
-function getTileIndex(x, y) {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = x - rect.left;
-    const mouseY = y - rect.top;
-    const col = Math.floor(mouseX / TILE_SIZE);
-    const row = Math.floor(mouseY / TILE_SIZE);
-    
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return -1;
-    return row * COLS + col;
-}
-
-// Place tile with brush
-function placeTile(index, tileId) {
-    if (index < 0 || index >= 512) return;
-    
-    const col = index % COLS;
-    const row = Math.floor(index / COLS);
-    
-    for (let by = 0; by < brushSize; by++) {
-        for (let bx = 0; bx < brushSize; bx++) {
-            const newCol = col + bx;
-            const newRow = row + by;
-            if (newCol < COLS && newRow < ROWS) {
-                const newIndex = newRow * COLS + newCol;
-                levelData[currentLevel][newIndex] = tileId;
+        // Initialize level data
+        function initLevelData() {
+            // Check if external data is loaded
+            if (typeof MANIC_MINER_LEVELS !== 'undefined' && MANIC_MINER_LEVELS.length > 0) {
+                console.log(`Loaded ${MANIC_MINER_LEVELS.length} levels from leveldata.js`);
+                levelData = JSON.parse(JSON.stringify(MANIC_MINER_LEVELS));
+                
+                // Make sure we have exactly 20 levels
+                while (levelData.length < 20) {
+                    levelData.push(Array(512).fill(0));
+                }
+                if (levelData.length > 20) {
+                    levelData = levelData.slice(0, 20);
+                }
+            } else {
+                // No external data - create empty levels
+                console.log('No external level data found. Creating empty levels.');
+                levelData = Array(20).fill().map(() => Array(512).fill(0));
             }
-        }
-    }
-    
-    drawLevel();
-}
-
-// Save to undo stack
-function saveUndo() {
-    undoStack.push(JSON.parse(JSON.stringify(levelData[currentLevel])));
-    if (undoStack.length > 50) undoStack.shift();
-}
-
-// Mouse events
-canvas.addEventListener('mousedown', (e) => {
-    saveUndo();
-    isDrawing = true;
-    const index = getTileIndex(e.clientX, e.clientY);
-    const tileId = e.button === 2 ? 0 : selectedTile;
-    placeTile(index, tileId);
-});
-
-canvas.addEventListener('mousemove', (e) => {
-    if (!isDrawing) return;
-    const index = getTileIndex(e.clientX, e.clientY);
-    const tileId = e.buttons === 2 ? 0 : selectedTile; // Use buttons for move
-    placeTile(index, tileId);
-});
-
-canvas.addEventListener('mouseup', () => {
-    isDrawing = false;
-});
-
-canvas.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-});
-
-// Brush size
-document.getElementById('brushSize').addEventListener('input', (e) => {
-    brushSize = parseInt(e.target.value);
-    document.getElementById('brushSizeLabel').textContent = `${brushSize}x${brushSize}`;
-});
-
-// Clear level
-document.getElementById('clearBtn').addEventListener('click', () => {
-    if (confirm('Clear entire level?')) {
-        saveUndo();
-        levelData[currentLevel] = Array(512).fill(0);
-        drawLevel();
-    }
-});
-
-// Fill solid
-document.getElementById('fillBtn').addEventListener('click', () => {
-    if (confirm('Fill entire level with solid tiles?')) {
-        saveUndo();
-        levelData[currentLevel] = Array(512).fill(2);
-        drawLevel();
-    }
-});
-
-// Undo
-document.getElementById('undoBtn').addEventListener('click', () => {
-    if (undoStack.length > 0) {
-        levelData[currentLevel] = undoStack.pop();
-        drawLevel();
-    }
-});
-
-// Export to C code
-document.getElementById('exportBtn').addEventListener('click', () => {
-    const data = levelData[currentLevel];
-    let output = `    { // Level ${currentLevel + 1}\n`;
-    
-    for (let row = 0; row < ROWS; row++) {
-        output += '        ';
-        for (let col = 0; col < COLS; col++) {
-            const index = row * COLS + col;
-            output += data[index];
-            if (index < 511) output += ', ';
-        }
-        output += '\n';
-    }
-    
-    output += '    }';
-    
-    document.getElementById('exportText').value = output;
-    document.getElementById('exportArea').style.display = 'block';
-    document.getElementById('copyBtn').style.display = 'inline-block';
-});
-
-// Copy to clipboard
-document.getElementById('copyBtn').addEventListener('click', () => {
-    const textarea = document.getElementById('exportText');
-    textarea.select();
-    document.execCommand('copy');
-    alert('Copied to clipboard!');
-});
-
-// Load external level data button
-document.getElementById('loadBtn')?.addEventListener('click', () => {
-    if (typeof MANIC_MINER_LEVELS !== 'undefined') {
-        levelData = [...MANIC_MINER_LEVELS];
-        // Pad with empty levels if needed
-        while (levelData.length < 20) {
-            levelData.push(Array(512).fill(0));
-        }
-        drawLevel();
-        alert(`Loaded ${MANIC_MINER_LEVELS.length} levels from leveldata.js`);
-    } else {
-        alert('No external level data found. Make sure leveldata.js is in the same folder.');
-    }
-});
-
-// Save level data button
-document.getElementById('saveBtn')?.addEventListener('click', () => {
-    const dataStr = "const MANIC_MINER_LEVELS = " + JSON.stringify(levelData, null, 2) + ";";
-    const dataBlob = new Blob([dataStr], {type: 'text/javascript'});
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'leveldata_export.js';
-    link.click();
-    URL.revokeObjectURL(url);
-});
-
-// Level selection listener
-document.getElementById('levelSelect').addEventListener('change', (e) => {
-    const levelNum = parseInt(e.target.value); // 1-20 from dropdown
-    const levelIndex = levelNum - 1; // Convert to 0-19 array index
-    currentLevel = levelIndex;
-    saveUndo();
-    drawLevel();
-});
-
-// Initialize
-initPalette();
-drawLevel();
-
-// Add load/save buttons to controls if they don't exist
-if (!document.getElementById('loadBtn')) {
-    const controls = document.querySelector('.controls');
-    const newGroup = document.createElement('div');
-    newGroup.className = 'control-group';
-    newGroup.innerHTML = `
-        <button id="loadBtn">Load from File</button>
-        <button id="saveBtn">Save to File</button>
-    `;
-    controls.appendChild(newGroup);
-    
-    // Re-attach event listeners
-    document.getElementById('loadBtn').addEventListener('click', () => {
-        if (typeof MANIC_MINER_LEVELS !== 'undefined') {
-            levelData = [...MANIC_MINER_LEVELS];
-            while (levelData.length < 20) {
-                levelData.push(Array(512).fill(0));
-            }
+            
+            // Initialize the editor
+            initPalette();
             drawLevel();
-            alert(`Loaded ${MANIC_MINER_LEVELS.length} levels from leveldata.js`);
-        } else {
-            alert('No external level data found. Make sure leveldata.js is in the same folder.');
+            console.log('Level editor initialized with', levelData.length, 'levels');
         }
-    });
-    
-    document.getElementById('saveBtn').addEventListener('click', () => {
-        const dataStr = "const MANIC_MINER_LEVELS = " + JSON.stringify(levelData, null, 2) + ";";
-        const dataBlob = new Blob([dataStr], {type: 'text/javascript'});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'leveldata_export.js';
-        link.click();
-        URL.revokeObjectURL(url);
-    });
-}
-</script>
-<script src="leveldata.js"></script>
+
+        // Initialize palette
+        function initPalette() {
+            const grid = document.getElementById('paletteGrid');
+            grid.innerHTML = ''; // Clear existing
+            TILE_TYPES.forEach(tile => {
+                const div = document.createElement('div');
+                div.className = 'palette-tile';
+                div.style.backgroundColor = tile.color;
+                div.innerHTML = `${tile.id}<br>${tile.name}`;
+                div.onclick = () => selectTile(tile.id);
+                div.dataset.tileId = tile.id;
+                grid.appendChild(div);
+            });
+            selectTile(0);
+        }
+
+        // Select tile
+        function selectTile(tileId) {
+            selectedTile = tileId;
+            document.querySelectorAll('.palette-tile').forEach(el => {
+                el.classList.remove('selected');
+            });
+            const selectedElement = document.querySelector(`[data-tile-id="${tileId}"]`);
+            if (selectedElement) {
+                selectedElement.classList.add('selected');
+            }
+            
+            const tile = TILE_TYPES[tileId];
+            document.getElementById('tileInfo').innerHTML = `
+                <strong>Tile ${tile.id}:</strong> ${tile.name}<br>
+                ${tile.desc}
+            `;
+        }
+
+        // Draw level
+        function drawLevel() {
+            if (!levelData) return;
+            
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const data = levelData[currentLevel];
+            for (let i = 0; i < 512; i++) {
+                const x = (i % COLS) * TILE_SIZE;
+                const y = Math.floor(i / COLS) * TILE_SIZE;
+                const tileId = data[i];
+                
+                if (tileId >= 0 && tileId < TILE_TYPES.length) {
+                    ctx.fillStyle = TILE_TYPES[tileId].color;
+                    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                }
+                
+                // Grid lines
+                ctx.strokeStyle = '#333333';
+                ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+            }
+        }
+
+        // Get tile index from mouse position
+        function getTileIndex(x, y) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = x - rect.left;
+            const mouseY = y - rect.top;
+            const col = Math.floor(mouseX / TILE_SIZE);
+            const row = Math.floor(mouseY / TILE_SIZE);
+            
+            if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return -1;
+            return row * COLS + col;
+        }
+
+        // Place tile with brush
+        function placeTile(index, tileId) {
+            if (index < 0 || index >= 512) return;
+            
+            const col = index % COLS;
+            const row = Math.floor(index / COLS);
+            
+            for (let by = 0; by < brushSize; by++) {
+                for (let bx = 0; bx < brushSize; bx++) {
+                    const newCol = col + bx;
+                    const newRow = row + by;
+                    if (newCol < COLS && newRow < ROWS) {
+                        const newIndex = newRow * COLS + newCol;
+                        levelData[currentLevel][newIndex] = tileId;
+                    }
+                }
+            }
+            
+            drawLevel();
+        }
+
+        // Save to undo stack
+        function saveUndo() {
+            undoStack.push(JSON.parse(JSON.stringify(levelData[currentLevel])));
+            if (undoStack.length > 50) undoStack.shift();
+        }
+
+        // Mouse events
+        canvas.addEventListener('mousedown', (e) => {
+            if (!levelData) return;
+            saveUndo();
+            isDrawing = true;
+            const index = getTileIndex(e.clientX, e.clientY);
+            const tileId = e.button === 2 ? 0 : selectedTile;
+            placeTile(index, tileId);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!levelData || !isDrawing) return;
+            const index = getTileIndex(e.clientX, e.clientY);
+            const tileId = e.buttons === 2 ? 0 : selectedTile; // Use buttons for move
+            placeTile(index, tileId);
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        // Brush size
+        document.getElementById('brushSize').addEventListener('input', (e) => {
+            brushSize = parseInt(e.target.value);
+            document.getElementById('brushSizeLabel').textContent = `${brushSize}x${brushSize}`;
+        });
+
+        // Clear level
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            if (!levelData) return;
+            if (confirm('Clear entire level?')) {
+                saveUndo();
+                levelData[currentLevel] = Array(512).fill(0);
+                drawLevel();
+            }
+        });
+
+        // Fill solid
+        document.getElementById('fillBtn').addEventListener('click', () => {
+            if (!levelData) return;
+            if (confirm('Fill entire level with solid tiles?')) {
+                saveUndo();
+                levelData[currentLevel] = Array(512).fill(2);
+                drawLevel();
+            }
+        });
+
+        // Undo
+        document.getElementById('undoBtn').addEventListener('click', () => {
+            if (!levelData) return;
+            if (undoStack.length > 0) {
+                levelData[currentLevel] = undoStack.pop();
+                drawLevel();
+            }
+        });
+
+        // Export to C code
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            if (!levelData) return;
+            const data = levelData[currentLevel];
+            let output = `    { // Level ${currentLevel + 1}\n`;
+            
+            for (let row = 0; row < ROWS; row++) {
+                output += '        ';
+                for (let col = 0; col < COLS; col++) {
+                    const index = row * COLS + col;
+                    output += data[index];
+                    if (index < 511) output += ', ';
+                }
+                output += '\n';
+            }
+            
+            output += '    }';
+            
+            document.getElementById('exportText').value = output;
+            document.getElementById('exportArea').style.display = 'block';
+            document.getElementById('copyBtn').style.display = 'inline-block';
+        });
+
+        // Copy to clipboard
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const textarea = document.getElementById('exportText');
+            textarea.select();
+            document.execCommand('copy');
+            alert('Copied to clipboard!');
+        });
+
+        // Load external level data button
+        document.getElementById('loadBtn').addEventListener('click', () => {
+            // Reload the leveldata.js file
+            const script = document.createElement('script');
+            script.src = 'leveldata.js';
+            script.onload = () => {
+                if (typeof MANIC_MINER_LEVELS !== 'undefined' && MANIC_MINER_LEVELS.length > 0) {
+                    levelData = JSON.parse(JSON.stringify(MANIC_MINER_LEVELS));
+                    while (levelData.length < 20) {
+                        levelData.push(Array(512).fill(0));
+                    }
+                    drawLevel();
+                    alert(`Reloaded ${MANIC_MINER_LEVELS.length} levels from leveldata.js`);
+                } else {
+                    alert('No external level data found. Make sure leveldata.js is in the same folder.');
+                }
+            };
+            script.onerror = () => {
+                alert('Failed to load leveldata.js. File may not exist or there may be a syntax error.');
+            };
+            document.head.appendChild(script);
+        });
+
+        // Save level data button
+        document.getElementById('saveBtn').addEventListener('click', () => {
+            if (!levelData) return;
+            const dataStr = "const MANIC_MINER_LEVELS = " + JSON.stringify(levelData, null, 2) + ";";
+            const dataBlob = new Blob([dataStr], {type: 'text/javascript'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'leveldata_export.js';
+            link.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // Level selection listener
+        document.getElementById('levelSelect').addEventListener('change', (e) => {
+            if (!levelData) return;
+            const levelNum = parseInt(e.target.value); // 1-20 from dropdown
+            const levelIndex = levelNum - 1; // Convert to 0-19 array index
+            currentLevel = levelIndex;
+            saveUndo();
+            drawLevel();
+        });
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            initLevelData();
+        });
+
+        // Also initialize if DOM is already loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initLevelData);
+        } else {
+            initLevelData();
+        }
+    </script>
 </body>
 </html>
