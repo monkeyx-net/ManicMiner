@@ -288,6 +288,15 @@ void DoGameDemoResponder()
 
 void DoGameResponder()
 {
+    if (gameInput == KEY_F5)
+    {
+        Level_ReloadData();
+        gamePaused = 0;
+        Drawer = DoGameDrawer;
+        DoGameInit();
+        return;
+    }
+
     if (gameInput == KEY_PAUSE)
     {
         GamePause(1 - gamePaused);

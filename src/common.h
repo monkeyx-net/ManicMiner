@@ -8,6 +8,7 @@ enum
     KEY_ESCAPE,
     KEY_PAUSE,
     KEY_MUTE,
+    KEY_F5,
     KEY_0,
     KEY_1,
     KEY_2,

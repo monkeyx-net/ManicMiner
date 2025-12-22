@@ -131,6 +131,12 @@ static void Level_LoadData(void)
     levelDataLoaded = 1;
 }
 
+void Level_ReloadData(void)
+{
+    levelDataLoaded = 0;
+    Level_LoadData();
+}
+
 
 BYTE        levelGfx[20][12][8] =
 {

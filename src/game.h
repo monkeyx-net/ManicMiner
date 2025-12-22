@@ -58,6 +58,7 @@ enum
 extern int  levelTicks;
 
 void Level_Init(void);
+void Level_ReloadData(void);
 void Level_Drawer(void);
 void Level_Ticker(void);
 int Level_GetTileType(int);

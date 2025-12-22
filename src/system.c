@@ -111,6 +111,10 @@ int System_GetEvent(int *key)
         *key = KEY_MUTE;
         break;
 
+      case SDLK_F5:
+        *key = KEY_F5;
+        break;
+
       case SDLK_0:
       case SDLK_1:
       case SDLK_2:
