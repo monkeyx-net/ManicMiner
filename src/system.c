@@ -7,11 +7,54 @@ SDL_Renderer        *sdlRenderer;
 SDL_Texture         *sdlTexture, *sdlTarget;
 SDL_Rect            sdlViewport;
 SDL_AudioDeviceID   sdlAudio;
+SDL_GameController  *sdlController;
+SDL_JoystickID      sdlControllerId;
 
 const BYTE          *keyState;
 
 UINT                *texPixels;
 int                 texPitch;
+
+static void System_OpenController(int index)
+{
+    SDL_Joystick *joy = NULL;
+
+    if (!SDL_IsGameController(index))
+    {
+        return;
+    }
+
+    if (sdlController)
+    {
+        return;
+    }
+
+    sdlController = SDL_GameControllerOpen(index);
+    if (!sdlController)
+    {
+        return;
+    }
+
+    joy = SDL_GameControllerGetJoystick(sdlController);
+    sdlControllerId = SDL_JoystickInstanceID(joy);
+}
+
+static void System_CloseController(void)
+{
+    if (!sdlController)
+    {
+        return;
+    }
+
+    SDL_GameControllerClose(sdlController);
+    sdlController = NULL;
+    sdlControllerId = -1;
+}
+
+static int System_ControllerActive(void)
+{
+    return sdlController && SDL_GameControllerGetAttached(sdlController);
+}
 
 int System_GetTime()
 {
@@ -44,17 +87,62 @@ void System_UpdateKeys()
 
 int System_IsKeyLeft()
 {
-    return keyState[SDL_SCANCODE_LEFT];
+    const int deadzone = 8000;
+
+    if (keyState[SDL_SCANCODE_LEFT])
+    {
+        return 1;
+    }
+
+    if (!System_ControllerActive())
+    {
+        return 0;
+    }
+
+    if (SDL_GameControllerGetButton(sdlController, SDL_CONTROLLER_BUTTON_DPAD_LEFT))
+    {
+        return 1;
+    }
+
+    return SDL_GameControllerGetAxis(sdlController, SDL_CONTROLLER_AXIS_LEFTX) <= -deadzone;
 }
 
 int System_IsKeyRight()
 {
-    return keyState[SDL_SCANCODE_RIGHT];
+    const int deadzone = 8000;
+
+    if (keyState[SDL_SCANCODE_RIGHT])
+    {
+        return 1;
+    }
+
+    if (!System_ControllerActive())
+    {
+        return 0;
+    }
+
+    if (SDL_GameControllerGetButton(sdlController, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))
+    {
+        return 1;
+    }
+
+    return SDL_GameControllerGetAxis(sdlController, SDL_CONTROLLER_AXIS_LEFTX) >= deadzone;
 }
 
 int System_IsKeyJump()
 {
-    return keyState[SDL_SCANCODE_SPACE];
+    if (keyState[SDL_SCANCODE_SPACE])
+    {
+        return 1;
+    }
+
+    if (!System_ControllerActive())
+    {
+        return 0;
+    }
+
+    return SDL_GameControllerGetButton(sdlController, SDL_CONTROLLER_BUTTON_A) ||
+        SDL_GameControllerGetButton(sdlController, SDL_CONTROLLER_BUTTON_B);
 }
 
 int System_GetEvent(int *key)
@@ -80,6 +168,56 @@ int System_GetEvent(int *key)
         {
             SDL_ShowCursor(SDL_DISABLE);
         }
+    }
+
+    if (event.type == SDL_CONTROLLERDEVICEADDED)
+    {
+        System_OpenController(event.cdevice.which);
+        return 0;
+    }
+
+    if (event.type == SDL_CONTROLLERDEVICEREMOVED)
+    {
+        if (event.cdevice.which == sdlControllerId)
+        {
+            System_CloseController();
+        }
+        return 0;
+    }
+
+    if (event.type == SDL_CONTROLLERBUTTONDOWN)
+    {
+        if (event.cbutton.button == SDL_CONTROLLER_BUTTON_START ||
+            event.cbutton.button == SDL_CONTROLLER_BUTTON_BACK)
+        {
+            if (SDL_GameControllerGetButton(sdlController, SDL_CONTROLLER_BUTTON_START) &&
+                SDL_GameControllerGetButton(sdlController, SDL_CONTROLLER_BUTTON_BACK))
+            {
+                DoQuit();
+                return 1;
+            }
+        }
+
+        switch (event.cbutton.button)
+        {
+          case SDL_CONTROLLER_BUTTON_A:
+          case SDL_CONTROLLER_BUTTON_B:
+            *key = KEY_ENTER;
+            break;
+          case SDL_CONTROLLER_BUTTON_START:
+            *key = KEY_ENTER;
+            break;
+          case SDL_CONTROLLER_BUTTON_BACK:
+            *key = KEY_PAUSE;
+            break;
+          case SDL_CONTROLLER_BUTTON_Y:
+            *key = KEY_MUTE;
+            break;
+          default:
+            *key = KEY_ELSE;
+        }
+
+        return 1;
     }
 
     if (event.type != SDL_KEYDOWN)
@@ -179,6 +317,8 @@ void System_Quit()
 {
     SDL_CloseAudioDevice(sdlAudio);
 
+    System_CloseController();
+
     SDL_DestroyTexture(sdlTexture);
     SDL_DestroyTexture(sdlTarget);
     SDL_DestroyRenderer(sdlRenderer);
@@ -192,8 +332,12 @@ void System_Init()
     SDL_AudioSpec   want;
     SDL_DisplayMode mode;
     int             multiply;
+    int             index;
 
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+    sdlController = NULL;
+    sdlControllerId = -1;
+
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER);
 
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
 
@@ -220,4 +364,16 @@ void System_Init()
     SDL_PauseAudioDevice(sdlAudio, 0);
 
     keyState = SDL_GetKeyboardState(NULL);
+
+    for (index = 0; index < SDL_NumJoysticks(); index++)
+    {
+        if (SDL_IsGameController(index))
+        {
+            System_OpenController(index);
+            if (sdlController)
+            {
+                break;
+            }
+        }
+    }
 }
