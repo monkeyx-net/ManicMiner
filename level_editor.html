@@ -227,6 +227,7 @@
                 <button id="loadBtn">Load from File</button>
                 <button id="saveBtn">Save to File</button>
             </div>
+            <input type="file" id="levelsFileInput" accept=".txt" style="display:none;">
         </div>
         
         <div class="editor-area">
@@ -274,9 +275,6 @@
         </div>
     </div>
 
-    <!-- Load external level data -->
-    <script src="leveldata.js"></script>
-    
     <script>
         // Tile definitions
         const TILE_TYPES = [
@@ -309,29 +307,38 @@
         let isDrawing = false;
 
         // Initialize level data
-        function initLevelData() {
-            // Check if external data is loaded
-            if (typeof MANIC_MINER_LEVELS !== 'undefined' && MANIC_MINER_LEVELS.length > 0) {
-                console.log(`Loaded ${MANIC_MINER_LEVELS.length} levels from leveldata.js`);
-                levelData = JSON.parse(JSON.stringify(MANIC_MINER_LEVELS));
-                
-                // Make sure we have exactly 20 levels
-                while (levelData.length < 20) {
-                    levelData.push(Array(512).fill(0));
-                }
-                if (levelData.length > 20) {
-                    levelData = levelData.slice(0, 20);
-                }
+        async function initLevelData() {
+            let promptFilePicker = false;
+            if (location.protocol === 'file:') {
+                promptFilePicker = true;
             } else {
-                // No external data - create empty levels
-                console.log('No external level data found. Creating empty levels.');
+                try {
+                    const response = await fetch('levels.txt', { cache: 'no-store' });
+                    if (!response.ok) {
+                        throw new Error('levels.txt not found');
+                    }
+                    const text = await response.text();
+                    levelData = normalizeLevelData(parseLevelsText(text));
+                    console.log('Loaded levels from levels.txt');
+                } catch (error) {
+                    console.log('No external level data found. Creating empty levels.');
+                    levelData = Array(20).fill().map(() => Array(512).fill(0));
+                }
+            }
+
+            if (!levelData) {
                 levelData = Array(20).fill().map(() => Array(512).fill(0));
             }
-            
+
             // Initialize the editor
             initPalette();
             drawLevel();
             console.log('Level editor initialized with', levelData.length, 'levels');
+
+            if (promptFilePicker) {
+                levelsFileInput.value = '';
+                levelsFileInput.click();
+            }
         }
 
         // Initialize palette
@@ -522,38 +529,114 @@
             alert('Copied to clipboard!');
         });
 
-        // Load external level data button
-        document.getElementById('loadBtn').addEventListener('click', () => {
-            // Reload the leveldata.js file
-            const script = document.createElement('script');
-            script.src = 'leveldata.js';
-            script.onload = () => {
-                if (typeof MANIC_MINER_LEVELS !== 'undefined' && MANIC_MINER_LEVELS.length > 0) {
-                    levelData = JSON.parse(JSON.stringify(MANIC_MINER_LEVELS));
-                    while (levelData.length < 20) {
-                        levelData.push(Array(512).fill(0));
-                    }
-                    drawLevel();
-                    alert(`Reloaded ${MANIC_MINER_LEVELS.length} levels from leveldata.js`);
-                } else {
-                    alert('No external level data found. Make sure leveldata.js is in the same folder.');
+        function normalizeLevelData(data) {
+            const normalized = JSON.parse(JSON.stringify(data || []));
+            while (normalized.length < 20) {
+                normalized.push(Array(512).fill(0));
+            }
+            for (let i = 0; i < normalized.length; i++) {
+                if (!Array.isArray(normalized[i])) {
+                    normalized[i] = Array(512).fill(0);
                 }
+                while (normalized[i].length < 512) {
+                    normalized[i].push(0);
+                }
+            }
+            return normalized;
+        }
+
+        function parseLevelsText(text) {
+            const lines = text.split(/\r?\n/);
+            const values = [];
+            for (const line of lines) {
+                const cleaned = line.split('#')[0];
+                if (!cleaned.trim()) continue;
+                const parts = cleaned.trim().split(/\s+/);
+                for (const part of parts) {
+                    const value = parseInt(part, 10);
+                    if (!Number.isNaN(value)) {
+                        values.push(value);
+                    }
+                }
+            }
+
+            const result = [];
+            const expected = 20 * 512;
+            for (let i = 0; i < expected; i++) {
+                if (i % 512 === 0) result.push([]);
+                result[result.length - 1].push(values[i] ?? 0);
+            }
+            return result;
+        }
+
+        function levelsToText(levels) {
+            const output = [];
+            for (let i = 0; i < levels.length; i++) {
+                output.push(`# Level ${i + 1}`);
+                const data = levels[i];
+                for (let row = 0; row < ROWS; row++) {
+                    const rowValues = [];
+                    for (let col = 0; col < COLS; col++) {
+                        rowValues.push(data[row * COLS + col]);
+                    }
+                    output.push(rowValues.join(' '));
+                }
+                output.push('');
+            }
+            return output.join('\n').trim() + '\n';
+        }
+
+        function loadLevelsFromFile(file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                levelData = normalizeLevelData(parseLevelsText(reader.result));
+                drawLevel();
+                alert('Loaded levels from file.');
             };
-            script.onerror = () => {
-                alert('Failed to load leveldata.js. File may not exist or there may be a syntax error.');
+            reader.onerror = () => {
+                alert('Failed to read the selected file.');
             };
-            document.head.appendChild(script);
+            reader.readAsText(file);
+        }
+
+        const levelsFileInput = document.getElementById('levelsFileInput');
+        levelsFileInput.addEventListener('change', () => {
+            if (!levelsFileInput.files || levelsFileInput.files.length === 0) {
+                return;
+            }
+            loadLevelsFromFile(levelsFileInput.files[0]);
         });
 
-        // Save level data button
+        // Load external level data button (levels.txt)
+        document.getElementById('loadBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('levels.txt', { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('levels.txt not found');
+                }
+                const text = await response.text();
+                levelData = normalizeLevelData(parseLevelsText(text));
+                drawLevel();
+                alert('Reloaded levels from levels.txt');
+            } catch (error) {
+                if (location.protocol === 'file:') {
+                    levelsFileInput.value = '';
+                    levelsFileInput.click();
+                    return;
+                }
+                alert('Failed to load levels.txt. Make sure it is in the same folder.');
+            }
+        });
+
+        // Save level data button (levels.txt)
         document.getElementById('saveBtn').addEventListener('click', () => {
             if (!levelData) return;
-            const dataStr = "const MANIC_MINER_LEVELS = " + JSON.stringify(levelData, null, 2) + ";";
-            const dataBlob = new Blob([dataStr], {type: 'text/javascript'});
+            const dataStr = levelsToText(levelData);
+            const dataBlob = new Blob([dataStr], {type: 'text/plain'});
             const url = URL.createObjectURL(dataBlob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = 'leveldata_export.js';
+            link.download = 'levels.txt';
             link.click();
             URL.revokeObjectURL(url);
         });
@@ -568,12 +651,7 @@
             drawLevel();
         });
 
-        // Initialize when DOM is loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            initLevelData();
-        });
-
-        // Also initialize if DOM is already loaded
+        // Initialize when DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initLevelData);
         } else {

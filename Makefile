@@ -32,7 +32,7 @@ ifneq ($(CROSS_COMPILE),)
         TARGET = $(PROJECT).html
         OBJ_DIR = emscripten
         CFLAGS = -std=c99 -O2 -Wall -Wextra -MMD -MP -s USE_SDL=2
-        LDFLAGS = -s USE_SDL=2 -s ALLOW_MEMORY_GROWTH=1 -s ASSERTIONS=1 -s ASYNCIFY=1
+        LDFLAGS = -s USE_SDL=2 -s ALLOW_MEMORY_GROWTH=1 -s ASSERTIONS=1 -s ASYNCIFY=1 --preload-file levels.txt@/levels.txt
         CPPFLAGS = -DBUILD=\"v$(VERSION_MAJOR).$(VERSION_MINOR).$(YEAR)\" -DPROJECT_NAME=\"$(PROJECT)\" -DPLATFORM_Emscripten=1
     else ifeq ($(CROSS_COMPILE), windows)
         CC = x86_64-w64-mingw32-gcc
@@ -255,7 +255,8 @@ endif
 
 # Clean builds
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET) $(PROJECT).exe 2>/dev/null || true
+	rm -rf $(BUILD_DIR) $(TARGET) $(PROJECT).exe \
+		$(PROJECT).html $(PROJECT).js $(PROJECT).wasm $(PROJECT).data 2>/dev/null || true
 	@echo "Clean complete"
 
 # Deep clean
