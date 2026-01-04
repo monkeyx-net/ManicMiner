@@ -85,7 +85,7 @@ BYTE    titleColour[256] =
     0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0xfc, 0xfc, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c, 0x6c
 };
 
-char    textTicker[] = "\x1\x0\x2\x2" "M" "\x2\x6" "A" "\x2\x4" "N" "\x2\x5" "I" "\x2\x3" "C " "\x2\x5" "M" "\x2\x3" "I" "\x2\x2" "N" "\x2\x6" "E" "\x2\x4" "R" "\x2\x7" "   (C) Software Projects Ltd. 1983   By Matthew Smith                                " "\x2\x5" "Cursor Keys = Left & Right   " "\x2\x6" "Space = Jump   " "\x2\x3" "Pause/Tab = Pause   " "\x2\x4" "M = Tune On/Off                                " "\x2\x7" "Guide " "\x2\x5" "M" "\x2\x3" "i" "\x2\x2" "n" "\x2\x6" "e" "\x2\x4" "r" "\x2\x7" " Willy through 20 " "\x2\x2" "lethal " "\x2\x7" "caverns ...";
+char    textTicker[] = "\x1\x0\x2\x2" "M" "\x2\x6" "A" "\x2\x4" "N" "\x2\x5" "I" "\x2\x3" "C " "\x2\x5" "M" "\x2\x3" "I" "\x2\x2" "N" "\x2\x6" "E" "\x2\x4" "R" "\x2\x7" "   (C) Software Projects Ltd. 1983   By Matthew Smith                                " "\x2\x5" "Cursor Keys = Left & Right   " "\x2\x6" "Space = Jump   " "\x2\x3" "Pause/Tab = Pause   " "\x2\x4" "M = Tune On/Off   F5 = Reload Levels   " "\x2\x7" "Controller: DPad/Stick = Move   A/B = Jump   Start = Enter   Select = Pause   Start+Select = Quit   Y = Mute                                " "\x2\x7" "Guide " "\x2\x5" "M" "\x2\x3" "i" "\x2\x2" "n" "\x2\x6" "e" "\x2\x4" "r" "\x2\x7" " Willy through 20 " "\x2\x2" "lethal " "\x2\x7" "caverns ...";
 
 int     textPos, textEnd = ((int)sizeof(textTicker) - 50) * -8;
 
@@ -142,9 +142,14 @@ void DoTitleInit()
     Video_Write(80 * WIDTH + 21 * 8, "\x2\x0" "Starring...");
     Video_Write(88 * WIDTH + 22 * 8, "\x2\x6" "Miner Willy");
 
-    Video_WriteLarge(104 * WIDTH, 6 * 8, "\x2\x0" "PRESS " "\x2\x6" "ENTER" "\x2\x0" " TO START");
+    Video_WriteLarge(96 * WIDTH, 6 * 8, "\x2\x0" "PRESS " "\x2\x6" "ENTER" "\x2\x0" " TO START");
 
     Video_DrawPiano();
+
+    Video_Write(152 * WIDTH, "\x2\x6" "KEYS ARROWS=MOVE SPACE=JUMP");
+    Video_Write(160 * WIDTH, "\x2\x6" "TAB/PAUSE=PAUSE M=MUTE F5=RELOAD");
+    Video_Write(168 * WIDTH, "\x2\x7" "PAD/STICK=MOVE  A/B=JUMP  L1=RELOAD");
+    Video_Write(176 * WIDTH, "\x2\x7" "ST=ENTER SEL=PAUSE ST+SEL=QUIT  Y=MUTE");
 
     textPos = WIDTH;
 

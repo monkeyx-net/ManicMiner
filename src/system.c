@@ -213,6 +213,9 @@ int System_GetEvent(int *key)
           case SDL_CONTROLLER_BUTTON_Y:
             *key = KEY_MUTE;
             break;
+          case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+            *key = KEY_F5;
+            break;
           default:
             *key = KEY_ELSE;
         }

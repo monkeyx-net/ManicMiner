@@ -47,6 +47,7 @@ static void PrintHelp(void)
     printf("  Select (Back)      : Pause\n");
     printf("  Start + Select     : Quit\n");
     printf("  Y                  : Mute music\n");
+    printf("  L1                 : Reload levels.txt\n");
 }
 
 int main(int argc, char **argv)
