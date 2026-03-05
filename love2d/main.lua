@@ -41,27 +41,32 @@ function love.load()
     Action = Loader_Action
 end
 
+local tickAccum = 0
+local tickStep  = 1 / TICKRATE   -- seconds per game tick
+
 function love.update(dt)
-    -- Update audio (generates PCM samples, fires music/sfx events)
+    -- Update audio every frame regardless of tick rate
     Audio_Update(dt)
 
-    -- Run the state machine: Action sets up Ticker/Drawer/Responder
-    if Action ~= DoNothing then
-        Action()
-    end
+    -- Accumulate time and run game logic at fixed 60 Hz
+    tickAccum = tickAccum + dt
+    while tickAccum >= tickStep do
+        tickAccum = tickAccum - tickStep
 
-    -- Run game logic ticker
-    if Ticker ~= DoNothing then
-        Ticker()
-    end
+        if Action ~= DoNothing then
+            Action()
+        end
 
-    -- Run drawer (writes to pixel buffer)
-    if Drawer ~= DoNothing then
-        Drawer()
-    end
+        if Ticker ~= DoNothing then
+            Ticker()
+        end
 
-    -- Flush pixel buffer to screen image
-    Video_Flush()
+        if Drawer ~= DoNothing then
+            Drawer()
+        end
+
+        Video_Flush()
+    end
 end
 
 function love.draw()

@@ -215,10 +215,10 @@ end
 
 -- Love2D QueueableSource for audio output
 local audioSource = nil
-local audioBufSize = 2048  -- samples per buffer (stereo)
+local audioBufSize = 512  -- samples per buffer (~23ms at 22050 Hz)
 
 function Audio_Init()
-    audioSource = love.audio.newQueueableSource(SAMPLERATE, 16, 2, 8)
+    audioSource = love.audio.newQueueableSource(SAMPLERATE, 16, 2, 4)
     audioSource:play()
 end
 
@@ -325,8 +325,12 @@ local function sfxVictory(sfx)
 end
 
 local function sfxMiner(sfx)
-    sfx.channel.active = true
-    sfx.clock = sfx.clock + sfx.length
+    sfx.channel.active = true       -- activate channel
+    sfx.clock = sfx.clock + sfx.length  -- schedule turn-off
+    sfx.state = "mineroff"          -- next clock fire = turn off
+end
+
+local function sfxMinerOff(sfx)
     sfxOff(sfx)
 end
 
@@ -663,6 +667,8 @@ function Audio_SfxEvent()
                 sfxVictory(sfx)
             elseif st == "miner" then
                 sfxMiner(sfx)
+            elseif st == "mineroff" then
+                sfxMinerOff(sfx)
             end
         end
     end
