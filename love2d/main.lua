@@ -1,0 +1,124 @@
+-- main.lua: Love2D entry point for Manic Miner
+
+-- Load modules that don't need Love2D graphics API at parse time
+require("common")
+require("misc")
+
+-- -----------------------------------------------------------------------------
+-- Love2D callbacks
+
+function love.load()
+    -- Load remaining modules (graphics API now available)
+    require("video")
+    require("audio")
+    require("levels")
+    require("miner")
+    require("robots")
+    require("portal")
+    require("spg")
+    require("cheat")
+    require("game")
+    require("die")
+    require("trans")
+    require("gameover")
+    require("victory")
+    require("title")
+    require("loader")
+
+    -- Window title
+    love.window.setTitle("Manic Miner")
+
+    -- Hide mouse cursor
+    love.mouse.setVisible(false)
+
+    -- Initialize video pixel buffer (creates ImageData + Image)
+    Video_Init()
+
+    -- Initialize audio
+    Audio_Init()
+
+    -- Start at the loader screen
+    Action = Loader_Action
+end
+
+function love.update(dt)
+    -- Update audio (generates PCM samples, fires music/sfx events)
+    Audio_Update(dt)
+
+    -- Run the state machine: Action sets up Ticker/Drawer/Responder
+    if Action ~= DoNothing then
+        Action()
+    end
+
+    -- Run game logic ticker
+    if Ticker ~= DoNothing then
+        Ticker()
+    end
+
+    -- Run drawer (writes to pixel buffer)
+    if Drawer ~= DoNothing then
+        Drawer()
+    end
+
+    -- Flush pixel buffer to screen image
+    Video_Flush()
+end
+
+function love.draw()
+    -- Draw border colour
+    local bc = borderColor
+    love.graphics.setBackgroundColor(bc[1], bc[2], bc[3])
+    love.graphics.clear(bc[1], bc[2], bc[3])
+
+    -- Draw game viewport
+    local sx, sy, sw, sh = Video_Viewport(love.graphics.getWidth(), love.graphics.getHeight())
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.draw(screenImage, sx, sy, 0, sw / WIDTH, sh / HEIGHT)
+end
+
+function love.keypressed(key, scancode, isrepeat)
+    if isrepeat then return end
+
+    -- Map Love2D key to game key code
+    local mapped = KEY_NONE
+
+    if key == "return" or key == "kpenter" then
+        mapped = KEY_ENTER
+    elseif key == "escape" then
+        mapped = KEY_ESCAPE
+    elseif key == "pause" or key == "tab" then
+        mapped = KEY_PAUSE
+    elseif key == "lalt" or key == "ralt" then
+        mapped = KEY_MUTE
+    elseif key == "1" then mapped = KEY_0
+    elseif key == "2" then mapped = KEY_1
+    elseif key == "3" then mapped = KEY_2
+    elseif key == "4" then mapped = KEY_3
+    elseif key == "5" then mapped = KEY_4
+    elseif key == "6" then mapped = KEY_5
+    elseif key == "7" then mapped = KEY_6
+    elseif key == "8" then mapped = KEY_7
+    elseif key == "9" then mapped = KEY_8
+    elseif key == "0" then mapped = KEY_9
+    else
+        mapped = KEY_ELSE
+    end
+
+    gameInput = mapped
+
+    if gameInput ~= KEY_NONE and Responder ~= DoNothing then
+        Responder()
+    end
+
+    gameInput = KEY_NONE
+end
+
+function love.keyreleased(key)
+    -- No action needed; key state is polled via System_IsKey (love.keyboard.isDown)
+end
+
+function love.quit()
+    -- Clean up audio
+    Audio_Shutdown()
+    return false  -- allow quit
+end
