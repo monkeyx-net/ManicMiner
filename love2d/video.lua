@@ -64,16 +64,17 @@ function Video_Viewport(ww, wh)
     return sx, sy, sw, sh
 end
 
--- Clear sprite pixels (B_ROBOT, B_MINER) from the game area, repaint to black.
+-- Clear sprite pixels (B_ROBOT, B_MINER) from the game area, restore to level background.
 -- Must be called before Level_Drawer each frame so old sprite positions are erased.
 function Video_ClearSprites()
     local GAME_PIXELS = 128 * WIDTH
     local mask = bor(B_ROBOT, B_MINER)
+    local bg = levelBG or 0
     for i = 0, GAME_PIXELS - 1 do
         local f = videoPixel[i]
         if band(f, mask) ~= 0 then
             videoPixel[i] = 0
-            System_SetPixel(i, 0)
+            System_SetPixel(i, bg)
         end
     end
 end

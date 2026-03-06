@@ -845,7 +845,7 @@ local levelTileGfx   = {}   -- 512 entries: which gfx index (0-9)
 local levelGfx       = {}   -- current level graphics [0..9][1..8]
 local levelItemCount = 0
 local levelCollapseData = {}    -- per-tile collapse counter (8 = full, 0 = gone)
-local levelBG        = 0        -- background paper colour for this level
+levelBG              = 0        -- background paper colour for this level (global)
 local levelCurrent   = nil
 
 levelTicks = 0
@@ -853,9 +853,7 @@ levelTicks = 0
 -- SPG tile tracking (for level 18)
 local spgTileState = {}
 
--- Conveyor animation timer
 local conveyorPhase = 0
-local conveyorTimer = nil
 
 function Level_Init()
     local lev = levelData[gameLevel]
@@ -907,11 +905,15 @@ function Level_Init()
         levelCollapseData[i] = (levelTileType[i] == T_COLLAPSE) and 8 or 0
     end
 
+    -- Clear game area to level background colour (prevents artifacts from previous level)
+    for i = 0, 128 * WIDTH - 1 do
+        videoPixel[i] = 0
+        System_SetPixel(i, levelBG)
+    end
+
     -- SPG state
     for i = 0, 511 do spgTileState[i] = 0 end
 
-    -- Conveyor timer
-    conveyorTimer = Timer_New(1, 4)
     conveyorPhase = 0
 end
 
@@ -936,7 +938,7 @@ function Level_TileDelete(tile)
             videoPixel[pos + row * WIDTH + col] = 0
         end
     end
-    Video_Tile(pos, levelGfx[1] or {0,0,0,0,0,0,0,0}, 0, 0, 8)
+    Video_Tile(pos, levelGfx[1] or {0,0,0,0,0,0,0,0}, levelBG, 0, 8)
 end
 
 function Level_CollapseTile(tile)
@@ -975,10 +977,8 @@ end
 function Level_Ticker()
     levelTicks = levelTicks + 1
 
-    -- Handle conveyor animation
-    if Timer_Update(conveyorTimer) > 0 then
-        conveyorPhase = band(conveyorPhase + 1, 7)
-    end
+    -- Advance conveyor phase 2 bits per tick (matches C: << 2 / >> 2 each tick)
+    conveyorPhase = band(conveyorPhase + 2, 7)
 
 end
 
@@ -1003,13 +1003,24 @@ function Level_Drawer()
             end
 
             if ttype == T_CONVEYL or ttype == T_CONVEYR then
-                -- Shift gfx for conveyor animation
+                -- Rows 0 and 2 (1-indexed: 1 and 3) animate in opposite directions.
+                -- All other rows are static (matches C: only two gfx bytes are rotated).
+                -- CONVEYL: row 1 goes left, row 3 goes right
+                -- CONVEYR: row 1 goes right, row 3 goes left
+                local phL = conveyorPhase                   -- left: increasing shift
+                local phR = band(8 - conveyorPhase, 7)     -- right: decreasing shift
+                local ph1 = (ttype == T_CONVEYL) and phL or phR
+                local ph3 = (ttype == T_CONVEYL) and phR or phL
                 local shifted = {}
-                local shift = conveyorPhase
-                if ttype == T_CONVEYL then shift = 8 - conveyorPhase end
                 for r = 1, 8 do
                     local b = gfx[r] or 0
-                    shifted[r] = band(bor(lshift(b, shift), rshift(b, 8 - shift)), 0xff)
+                    if r == 1 and ph1 ~= 0 then
+                        shifted[r] = band(bor(lshift(b, ph1), rshift(b, 8 - ph1)), 0xff)
+                    elseif r == 3 and ph3 ~= 0 then
+                        shifted[r] = band(bor(lshift(b, ph3), rshift(b, 8 - ph3)), 0xff)
+                    else
+                        shifted[r] = b
+                    end
                 end
                 Video_Tile(pos, shifted, paper, ink, 8)
             elseif ttype == T_COLLAPSE and levelCollapseData[tile] < 8 then

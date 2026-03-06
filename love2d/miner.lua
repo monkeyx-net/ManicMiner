@@ -166,13 +166,6 @@ function DoMinerTicker()
         local type0 = Level_GetTileType(tile)
         local type1 = Level_GetTileType(tile + 1)
 
-        if type0 == T_COLLAPSE then
-            Level_CollapseTile(tile)
-        end
-        if type1 == T_COLLAPSE then
-            Level_CollapseTile(tile + 1)
-        end
-
         if type0 == T_HARM or type1 == T_HARM then
             if minerAir == 1 and (type0 <= T_SPACE or type1 <= T_SPACE) then
                 MoveLeftRight()
@@ -188,6 +181,14 @@ function DoMinerTicker()
                 return
             end
 
+            -- Only collapse when player is standing on the tile
+            if type0 == T_COLLAPSE then
+                Level_CollapseTile(tile)
+            end
+            if type1 == T_COLLAPSE then
+                Level_CollapseTile(tile + 1)
+            end
+
             minerAir = 0
 
             if type0 == T_CONVEYL or type1 == T_CONVEYL then
@@ -198,12 +199,8 @@ function DoMinerTicker()
 
             local i = 0
 
-            if System_IsKey(KEY_LEFT) == 1 or conveyDir == C_LEFT then
-                i = i + 1
-            end
-            if System_IsKey(KEY_RIGHT) == 1 or conveyDir == C_RIGHT then
-                i = i + 2
-            end
+            if System_IsKey(KEY_LEFT) == 1 or conveyDir == C_LEFT then i = i + 1 end
+            if System_IsKey(KEY_RIGHT) == 1 or conveyDir == C_RIGHT then i = i + 2 end
 
             if i == 0 then
                 minerMove = 0

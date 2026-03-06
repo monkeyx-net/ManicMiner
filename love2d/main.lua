@@ -95,16 +95,16 @@ function love.keypressed(key, scancode, isrepeat)
         mapped = KEY_PAUSE
     elseif key == "lalt" or key == "ralt" then
         mapped = KEY_MUTE
-    elseif key == "1" then mapped = KEY_0
-    elseif key == "2" then mapped = KEY_1
-    elseif key == "3" then mapped = KEY_2
-    elseif key == "4" then mapped = KEY_3
-    elseif key == "5" then mapped = KEY_4
-    elseif key == "6" then mapped = KEY_5
-    elseif key == "7" then mapped = KEY_6
-    elseif key == "8" then mapped = KEY_7
-    elseif key == "9" then mapped = KEY_8
-    elseif key == "0" then mapped = KEY_9
+    elseif key == "0" then mapped = KEY_0
+    elseif key == "1" then mapped = KEY_1
+    elseif key == "2" then mapped = KEY_2
+    elseif key == "3" then mapped = KEY_3
+    elseif key == "4" then mapped = KEY_4
+    elseif key == "5" then mapped = KEY_5
+    elseif key == "6" then mapped = KEY_6
+    elseif key == "7" then mapped = KEY_7
+    elseif key == "8" then mapped = KEY_8
+    elseif key == "9" then mapped = KEY_9
     else
         mapped = KEY_ELSE
     end
