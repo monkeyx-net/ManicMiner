@@ -152,13 +152,37 @@ end
 -- gameInput: set by keypressed, consumed by Responder
 gameInput = KEY_NONE
 
--- Check if a key is currently held
+-- Active gamepad (set by love.joystickadded / love.joystickremoved in main.lua)
+activeGamepad = nil
+
+-- Analog stick dead zone
+local AXIS_THRESHOLD = 0.5
+
+-- Check if a key is currently held (keyboard or gamepad)
 function System_IsKey(key)
     local k = keyMap[key]
-    if k then
-        return love.keyboard.isDown(k) and 1 or 0
+    local held = k and love.keyboard.isDown(k) or false
+
+    if not held and activeGamepad then
+        if key == KEY_LEFT then
+            held = activeGamepad:isGamepadDown("dpleft")
+                or activeGamepad:getGamepadAxis("leftx") < -AXIS_THRESHOLD
+        elseif key == KEY_RIGHT then
+            held = activeGamepad:isGamepadDown("dpright")
+                or activeGamepad:getGamepadAxis("leftx") > AXIS_THRESHOLD
+        elseif key == KEY_JUMP then
+            held = activeGamepad:isGamepadDown("a")
+                or activeGamepad:isGamepadDown("b")
+        end
     end
-    return 0
+
+    -- ALT and Tab also act as jump
+    if not held and key == KEY_JUMP then
+        held = love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
+            or love.keyboard.isDown("tab")
+    end
+
+    return held and 1 or 0
 end
 
 -- Border color (drawn around the game viewport)

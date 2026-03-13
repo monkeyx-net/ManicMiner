@@ -37,6 +37,14 @@ function love.load()
     -- Initialize audio
     Audio_Init()
 
+    -- Detect any already-connected gamepad
+    for _, js in ipairs(love.joystick.getJoysticks()) do
+        if js:isGamepad() then
+            activeGamepad = js
+            break
+        end
+    end
+
     -- Start at the loader screen
     Action = Loader_Action
 end
@@ -91,10 +99,10 @@ function love.keypressed(key, scancode, isrepeat)
         mapped = KEY_ENTER
     elseif key == "escape" then
         mapped = KEY_ESCAPE
-    elseif key == "pause" or key == "tab" then
+    elseif key == "pause" then
         mapped = KEY_PAUSE
-    elseif key == "lalt" or key == "ralt" then
-        mapped = KEY_MUTE
+    elseif key == "tab" or key == "lalt" or key == "ralt" then
+        mapped = KEY_JUMP
     elseif key == "0" then mapped = KEY_0
     elseif key == "1" then mapped = KEY_1
     elseif key == "2" then mapped = KEY_2
@@ -120,6 +128,46 @@ end
 
 function love.keyreleased(key)
     -- No action needed; key state is polled via System_IsKey (love.keyboard.isDown)
+end
+
+-- Gamepad button -> game key event mapping
+local gamepadButtonMap = {
+    a     = KEY_JUMP,
+    b     = KEY_JUMP,
+    x     = KEY_PAUSE,
+    y     = KEY_MUTE,
+    start = KEY_ENTER,
+    back  = KEY_ESCAPE,
+}
+
+function love.gamepadpressed(joystick, button)
+    local mapped = gamepadButtonMap[button]
+    if mapped then
+        gameInput = mapped
+        if gameInput ~= KEY_NONE and Responder ~= DoNothing then
+            Responder()
+        end
+        gameInput = KEY_NONE
+    end
+end
+
+function love.joystickadded(joystick)
+    if joystick:isGamepad() and not activeGamepad then
+        activeGamepad = joystick
+    end
+end
+
+function love.joystickremoved(joystick)
+    if activeGamepad == joystick then
+        activeGamepad = nil
+        -- Pick another gamepad if available
+        for _, js in ipairs(love.joystick.getJoysticks()) do
+            if js:isGamepad() then
+                activeGamepad = js
+                break
+            end
+        end
+    end
 end
 
 function love.quit()
