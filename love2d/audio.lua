@@ -222,31 +222,6 @@ function Audio_Init()
     audioSource:play()
 end
 
--- Generate a buffer of audio samples
--- Returns a SoundData
-local function generateBuffer(numSamples)
-    local sd = love.sound.newSoundData(numSamples, SAMPLERATE, 16, 2)
-    for i = 0, numSamples - 1 do
-        -- Tick audio events every TICKRATE/SAMPLERATE samples
-        -- (roughly every 368 samples)
-        -- This is done in Audio_Update instead
-
-        local L = 0
-        local R = 0
-        for c = 1, musicChannelsCount do
-            channelOutput(audioChannel[c])
-            L = L + audioChannel[c].left[3]
-            R = R + audioChannel[c].right[3]
-        end
-        -- Clamp to 16-bit range
-        L = math.max(-32768, math.min(32767, L))
-        R = math.max(-32768, math.min(32767, R))
-        sd:setSample(i * 2,     L / 32768)
-        sd:setSample(i * 2 + 1, R / 32768)
-    end
-    return sd
-end
-
 -- Audio timer for game sync
 local audioGameTimer = nil
 local audioSampleCounter = 0

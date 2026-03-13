@@ -869,23 +869,6 @@ function Level_Init()
     levelGfx = lev.gfx
     levelTicks = 0
 
-    -- Build tile type lookup from colour -> type
-    local colourToType = {}
-    for _, info in ipairs(lev.info) do
-        colourToType[info.colour] = info.type
-    end
-
-    -- Determine gfx index for each tile value
-    -- tile value in data = index into gfx array (0-based)
-    -- gfx[0] is always SPACE (all zeros)
-    -- info maps colour of each gfx to a tile type
-
-    -- Build: for gfx index i, what colour is it?
-    -- The "colour" in info corresponds to gfx entry colour byte
-    -- Actually, in the original: info[i].colour matches gfx[i]'s color byte
-    -- The data tiles just reference gfx indices directly (0..9)
-    -- tile type is determined by looking at info[tile_data_value].type
-
     -- Build tile type map: data value -> tile type
     local dataToType = {}
     for i, info in ipairs(lev.info) do

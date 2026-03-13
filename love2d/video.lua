@@ -13,6 +13,15 @@ screenImage = nil  -- global so main.lua can draw it
 -- Flag: image needs refresh
 local imageDirty = false
 
+-- Pre-computed pixel offsets within a tile for point 0..63
+-- offset = (row * WIDTH) + col  where row = point>>3, col = point&7
+local tilePixelOffset = {}
+do
+    for point = 0, 63 do
+        tilePixelOffset[point] = bor(band(lshift(point, 5), 0x700), band(point, 7))
+    end
+end
+
 function Video_Init()
     imgData = love.image.newImageData(WIDTH, HEIGHT)
     screenImage = love.graphics.newImage(imgData)
@@ -91,7 +100,6 @@ end
 -- gfx: array [1..8] of bytes (each byte = one row, bit7=left)
 -- rows: number of rows to draw (usually 8)
 function Video_Tile(pos, gfx, paper, ink, rows)
-    local colour = {paper, ink}
     for row = 0, rows - 1 do
         local pixel = pos + row * WIDTH
         local byte = gfx[row + 1] or 0
@@ -99,7 +107,11 @@ function Video_Tile(pos, gfx, paper, ink, rows)
             local px = pixel + (7 - bit)
             local v = band(rshift(byte, bit), 1)
             videoPixel[px] = v * B_LEVEL
-            System_SetPixel(px, colour[v + 1])
+            if v == 0 then
+                System_SetPixel(px, paper)
+            else
+                System_SetPixel(px, ink)
+            end
         end
     end
     return pos + rows * WIDTH
@@ -117,7 +129,7 @@ end
 function Video_TilePaper(tile, paper)
     local pixel = TILE2PIXEL(tile)
     for point = 0, 63 do
-        local pos = pixel + bor(band(lshift(point, 5), 0x700), band(point, 7))
+        local pos = pixel + tilePixelOffset[point]
         if band(videoPixel[pos], B_LEVEL) == 0 then
             System_SetPixel(pos, paper)
         end
@@ -128,7 +140,7 @@ end
 function Video_TileInk(tile, ink)
     local pixel = TILE2PIXEL(tile)
     for point = 0, 63 do
-        local pos = pixel + bor(band(lshift(point, 5), 0x700), band(point, 7))
+        local pos = pixel + tilePixelOffset[point]
         if band(videoPixel[pos], B_LEVEL) ~= 0 then
             System_SetPixel(pos, ink)
         end
@@ -152,7 +164,6 @@ end
 -- Draw a 16x16 sprite (u16[16]) at pixel position pos (top-left)
 -- Bits drawn right-to-left (pos+15 = bit0, pos+0 = bit15)
 function Video_Sprite(pos, gfx, paper, ink)
-    local colour = {paper, ink}
     local startpos = pos + 15
     for row = 0, 15 do
         local pixel = startpos + row * WIDTH
@@ -160,7 +171,11 @@ function Video_Sprite(pos, gfx, paper, ink)
         for bit = 0, 15 do
             local v = band(word, 1)
             videoPixel[pixel] = v  -- 0 or B_LEVEL(1)
-            System_SetPixel(pixel, colour[v + 1])
+            if v == 0 then
+                System_SetPixel(pixel, paper)
+            else
+                System_SetPixel(pixel, ink)
+            end
             pixel = pixel - 1
             word = rshift(word, 1)
         end
